@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # JARVIS
 
 **Just A Rather Very Intelligent System** — Trợ lý AI giọng nói tiếng Việt chạy local trên Windows.
