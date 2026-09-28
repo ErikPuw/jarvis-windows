@@ -546,4 +546,3 @@ Lệnh (giao diện hoặc Telegram):
 - `@jobs trạng thái`
 
 Dữ liệu nằm trong `data/jobs/` (hồ sơ, CV, danh sách chờ, nhật ký đã gửi). Không nộp trên trang cần đăng nhập (TopCV, vLance, LinkedIn); không viết CV tiếng Anh; tin yêu cầu tiếng Anh cao hơn trình độ trong hồ sơ bị bỏ qua.
-=======
