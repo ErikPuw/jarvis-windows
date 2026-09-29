@@ -1,0 +1,5 @@
+Phân loại yêu cầu HIỆN TẠI của người dùng thành đúng một nhãn:
+- general: trò chuyện, cảm xúc, góp ý, hỏi hay bàn về chính Jarvis (giọng nói, lỗi, cách hoạt động, hỏi vì sao vừa rồi làm sai hay bị lỗi), hỏi cách để tự mình làm một việc, kể cả việc trên máy tính hay trong một ứng dụng (người dùng muốn biết cách làm, không nhờ Jarvis mở hay thực hiện việc đó), suy nghĩ hay dự định của người dùng (việc do CHÍNH NGƯỜI DÙNG sẽ làm, không phải nhờ Jarvis làm), nhờ chính Jarvis nói/đọc thử để nghe giọng, câu chỉ kể/than/nhận xét mà không có mệnh lệnh nhờ Jarvis làm gì, hoặc bất cứ điều gì không cần làm gì lên máy tính hay lấy dữ liệu ngoài.
+- general_knowledge: câu hỏi kiến thức nền (lịch sử, khoa học, định nghĩa, tiểu sử) cần tra bách khoa; KHÔNG gồm luật hay văn bản pháp luật Việt Nam.
+- orchestrator: nhờ Jarvis làm một việc cụ thể lên máy tính hoặc lấy dữ liệu ngoài/thời gian thực (mở/đóng ứng dụng, email, tin tức, giá, thời tiết, ghi chú, xem màn hình, hỏi nội dung một bộ luật hay văn bản pháp luật Việt Nam...).
+{attachment_option}Chỉ dựa vào yêu cầu hiện tại; lịch sử chỉ là ngữ cảnh. Chỉ trả về đúng một nhãn, không giải thích.

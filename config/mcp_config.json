@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "gitnexus": {
+      "command": "gitnexus",
+      "args": [
+        "mcp"
+      ],
+      "enabled": false
+    },
+    "headroom": {
+      "command": "headroom",
+      "args": [
+        "mcp",
+        "serve"
+      ],
+      "enabled": false
+    },
+    "wikipedia-mcp": {
+      "command": "wikipedia-mcp",
+      "args": [
+        "--language",
+        "VI"
+      ],
+      "enabled": true
+    },
+    "codebase-memory-mcp": {
+      "command": "codebase-memory-mcp",
+      "args": [],
+      "enabled": false
+    }
+  }
+}
