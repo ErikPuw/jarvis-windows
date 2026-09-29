@@ -24,6 +24,8 @@ Bạn nói hoặc gõ bằng tiếng Việt, JARVIS hiểu và **làm việc th�
 
 **Cần gì để chạy?** Windows 10/11, Python 3.11+, Node.js 18+, Chrome, llama.cpp server (LLM và embeddings) và Redis. Chi tiết ở mục [Cài đặt và cấu hình](#-cài-đặt-và-cấu-hình).
 
+**Xưng hô:** JARVIS tự xưng "tôi" và gọi người dùng là "ngài" (luật cứng trong [`prompt/identity.md`](prompt/identity.md); muốn đổi thì sửa file này và `prompt/user.md`). Tài liệu này gọi người đọc là "bạn".
+
 > **Trạng thái:** dự án cá nhân, đang phát triển liên tục. Gặp lỗi hoặc có ý tưởng? Mở [issue](https://github.com/erikpuw/jarvis-windows/issues) (có mẫu sẵn).
 
 ## 📑 Mục Lục
@@ -38,16 +40,17 @@ Bạn nói hoặc gõ bằng tiếng Việt, JARVIS hiểu và **làm việc th�
 8. [Bộ Nhớ, Memory Center và Obsidian Wiki](#️-bộ-nhớ-memory-center-và-obsidian-wiki)
 9. [Giao Diện (Frontend)](#-giao-diện-frontend)
 10. [Mở Rộng: Lệnh, Skill, Hook, MCP, Telegram](#-mở-rộng-lệnh-skill-hook-mcp-telegram)
-11. [Kho Tài Liệu (`@rag`)](#-kho-tài-liệu-rag)
-12. [Tìm Việc (`@jobs`)](#-tìm-việc-jobs)
-13. [Kiến Trúc Hệ Thống](#️-kiến-trúc-hệ-thống)
-14. [Cài Đặt và Cấu Hình](#-cài-đặt-và-cấu-hình)
-15. [API](#-api)
-16. [Cấu Trúc Thư Mục](#-cấu-trúc-thư-mục)
-17. [Kiểm Thử và Đo Đạc](#-kiểm-thử-và-đo-đạc)
-18. [Bảo Mật](#-bảo-mật)
-19. [Nhật Ký Phiên Bản](#-nhật-ký-phiên-bản)
-20. [Giấy Phép & Tuyên Bố Miễn Trừ](#-giấy-phép--tuyên-bố-miễn-trừ)
+11. [Công Cụ Nền Tảng: Cào Web và Điều Khiển Windows](#-công-cụ-nền-tảng-cào-web-và-điều-khiển-windows)
+12. [Kho Tài Liệu (`@rag`)](#-kho-tài-liệu-rag)
+13. [Tìm Việc (`@jobs`)](#-tìm-việc-jobs)
+14. [Kiến Trúc Hệ Thống](#️-kiến-trúc-hệ-thống)
+15. [Cài Đặt và Cấu Hình](#-cài-đặt-và-cấu-hình)
+16. [API](#-api)
+17. [Cấu Trúc Thư Mục](#-cấu-trúc-thư-mục)
+18. [Kiểm Thử và Đo Đạc](#-kiểm-thử-và-đo-đạc)
+19. [Bảo Mật](#-bảo-mật)
+20. [Nhật Ký Phiên Bản](#-nhật-ký-phiên-bản)
+21. [Giấy Phép & Tuyên Bố Miễn Trừ](#-giấy-phép--tuyên-bố-miễn-trừ)
 
 ---
 
@@ -60,8 +63,10 @@ Bạn nói hoặc gõ bằng tiếng Việt, JARVIS hiểu và **làm việc th�
 | **LLM local** | Gemma 4 E4B-it QAT (profile đang dùng) hoặc Qwen3.5-9B, chạy qua llama.cpp tại `http://localhost:8080/v1`, xử lý được cả văn bản lẫn hình ảnh |
 | **Embeddings local** | `nomic-embed-text-v1.5-q8_0` tại `http://localhost:8081/v1`, dùng cho RAG và bộ nhớ ngữ nghĩa |
 | **Giọng nói tiếng Việt** | Nhận giọng bằng Web Speech API (`vi-VN`), có sửa lỗi nhận dạng. Đọc thành tiếng bằng Edge-TTS (`vi-VN-NamMinhNeural`) hoặc VieNeu streaming (port 8082); chỉ bật một trong hai |
+| **Điều khiển Windows** | Agent `win_control` dùng cua-driver (UI Automation) điều khiển app chạy nền, không chiếm chuột; xác nhận trước mỗi thao tác đổi máy. Cách cài cua-driver: xem [chi tiết](#-công-cụ-nền-tảng-cào-web-và-điều-khiển-windows) |
+| **Cào web** | Scrapling hai tầng: HTTP giả vân tay trình duyệt, dự phòng trình duyệt headless cho trang chống bot hoặc cần JavaScript. Dùng cho tin tức, giá sản phẩm, luật, tìm việc, thời tiết, Vietlott |
 | **Định tuyến 2 tầng** | Gate chỉ quyết định **trò chuyện hay làm việc**, không cần biết có những agent nào. Orchestrator chọn agent bằng native tool calling, có thể gọi nhiều agent nối tiếp nhau |
-| **Lời đề nghị có kiểm soát** | Khi ngài chỉ trò chuyện, Jarvis đề nghị việc có thể làm bằng thẻ `<ask_user>`/`<action_run>`. Ngài đáp "ừ" thì code chạy đúng tool đã đề nghị, không cần LLM đoán lại |
+| **Lời đề nghị có kiểm soát** | Khi bạn chỉ trò chuyện, Jarvis đề nghị việc có thể làm bằng thẻ `<ask_user>`/`<action_run>`. Bạn đáp "ừ" thì code chạy đúng tool đã đề nghị, không cần LLM đoán lại |
 | **Prompt tập trung** | Chữ của mọi prompt nằm trong `prompt/*.md`, code ghép prompt nằm trong `engine/prompts/` |
 | **Chống bịa kết quả** | Mọi lượt chat đều có chỉ thị `<tool_status>` nói rằng ở lượt này không có công cụ nào chạy, nên chat không được tự nói "đã kiểm tra" hay nêu trạng thái hệ thống |
 | **An ninh** | Guardrails chống prompt injection, firewall IP + kiểm tra Origin (chống CSRF/WebSocket hijacking) cho REST và WebSocket, theo dõi kết nối |
@@ -74,14 +79,14 @@ Bạn nói hoặc gõ bằng tiếng Việt, JARVIS hiểu và **làm việc th�
 | **Bộ nhớ & Obsidian** | SQLite + FTS5 (`data/jarvis.db`) là nguồn gốc. Obsidian Vault (`data/wiki/`) là bản chiếu một chiều. Memory Center trong WebUI là nơi sửa duy nhất |
 | **Tự học tự phản tư** | Mỗi lượt học gồm một lượt đề xuất và một lượt phản biện, rồi code chốt chặn. Có thể gỡ đúng điều vừa học (`retract`). Workflow chạy thành công được dùng lại khi câu lệnh khớp nguyên văn |
 | **Dream Cycle** | Chạy lúc rảnh ban đêm để tóm tắt và dọn hội thoại, kết quả agent, wiki cũ. Luôn sao lưu trước khi gộp |
-| **Self-Healing** | Quét log mỗi 60 giây, phân loại lỗi và ghi vào `Errors.md`. Chỉ nhờ Goose sửa code khi ngài đã duyệt |
+| **Self-Healing** | Quét log mỗi 60 giây, phân loại lỗi và ghi vào `Errors.md`. Chỉ nhờ Goose sửa code khi bạn đã duyệt |
 
 ### 🇻🇳 Tiện ích thêm (tùy chọn)
 
 Mỗi tiện ích là một agent riêng trong `engine/agents/` (danh sách đầy đủ ở mục [18 chuyên viên tác vụ](#-18-chuyên-viên-tác-vụ-agents)):
 
 - **Đời sống Việt Nam**: thời tiết, tin tức, giá vàng/xăng/tỷ giá, lịch vạn niên, cung hoàng đạo, lịch chiếu CGV, game miễn phí Epic, bản đồ và chỉ đường.
-- **Giải trí**: nghe nhạc, YouTube, livestream, phim.
+- **Giải trí**: nghe nhạc, YouTube, livestream.
 - **Tra cứu chuyên biệt**: văn bản pháp luật Việt Nam; Vietlott (thống kê, backtest, không dự đoán).
 - **Công việc**: email và lịch Outlook, ghi chú, `@jobs` tìm việc và soạn thư xin việc (chỉ gửi khi bạn duyệt).
 
@@ -96,7 +101,7 @@ Mỗi tiện ích là một agent riêng trong `engine/agents/` (danh sách đ�
 | 0 | `@plans` | Câu bắt đầu bằng `@plans <mục tiêu>`, ví dụ `@plans hôm nay không biết ăn gì` | Chế độ mục tiêu ([engine/plans](engine/plans)): lập kế hoạch tra cứu → gọi agent đọc (search/web/history) → lập lại khi cần → một kết luận. Chat **không** tự đề nghị chế độ này |
 | 0b | `@rag` | Câu bắt đầu bằng `@rag` | Kho tài liệu lâu dài ([engine/rag](engine/rag)), xem mục "Kho tài liệu (`@rag`)". Chạy trước `@mention`, nên `@rag` không còn rơi vào agent RAG bắt buộc có tệp |
 | 1 | `@mention` | Câu bắt đầu bằng `@desktop`, `@mail`… (danh bạ ở `prompt/tools.md`) | Gọi thẳng agent đó |
-| 2 | Đáp lời đề nghị | Lượt trước Jarvis đã hỏi `<ask_user>`, giờ ngài đáp "ừ", "đồng ý", "không"… | Code chạy đúng tool trong `<action_run>`, không qua LLM |
+| 2 | Đáp lời đề nghị | Lượt trước Jarvis đã hỏi `<ask_user>`, giờ bạn đáp "ừ", "đồng ý", "không"… | Code chạy đúng tool trong `<action_run>`, không qua LLM |
 | 3 | Điều khiển bằng giọng | Lệnh âm lượng, tắt máy… | Agent `win_control` |
 | 4 | Phàn nàn định tuyến | "sai rồi, tôi chỉ hỏi thôi" | Gỡ workflow vừa chạy nhầm và ghi `routing_correction` |
 | 5 | Dùng lại workflow | Câu **khớp nguyên văn** một lệnh đã chạy thành công trước đó | Chạy thẳng chuỗi tool đã lưu |
@@ -139,10 +144,10 @@ Mỗi loại dữ liệu chỉ vào model qua **đúng một kênh**.
 
 ## 💬 Lời Đề Nghị, "ừ" và Chống Bịa
 
-- **Ngài chỉ trò chuyện**, ví dụ "tôi lười mở notepad quá": Jarvis trả lời rồi đề nghị
+- **Bạn chỉ trò chuyện**, ví dụ "tôi lười mở notepad quá": Jarvis trả lời rồi đề nghị
   `Ngài có muốn tôi <ask_user>mở Notepad</ask_user> không?<action_run>open_app</action_run>`.
-  Ngài đáp "ừ" thì code chạy `open_app` ngay. Danh sách tool được phép đề nghị nằm ở cột `offer` trong `prompt/tools.md`.
-- **Ngài nhờ rõ ràng**, ví dụ "bạn mở notepad giúp tôi": Jarvis làm luôn, không hỏi lại.
+  Bạn đáp "ừ" thì code chạy `open_app` ngay. Danh sách tool được phép đề nghị nằm ở cột `offer` trong `prompt/tools.md`.
+- **Bạn nhờ rõ ràng**, ví dụ "bạn mở notepad giúp tôi": Jarvis làm luôn, không hỏi lại.
 - **Chống bịa**:
   - Lượt chat thường luôn có `<tool_status>` với nội dung "ở lượt này không có công cụ nào chạy": không nói đã làm, không nêu kết quả hay trạng thái; cần dữ liệu thật thì đề nghị.
   - Lượt agent từ chối có `<tool_status>` với nội dung "chưa làm được": không dựa vào lịch sử để nói "đã … rồi".
@@ -158,7 +163,7 @@ Các agent đăng ký trong `engine/orchestrator/registry.py`, mã nguồn ở `
 |-------|-----------------|
 | **desktop** | Mở/đóng ứng dụng Windows, giữ đúng tên gốc ứng dụng |
 | **search** | Thời tiết, tin tức, giá vàng/xăng/tỷ giá, lịch vạn niên, cung hoàng đạo, lịch chiếu CGV, game miễn phí Epic, đơn vị hành chính, bản đồ và chỉ đường |
-| **media** | Nghe nhạc, xem YouTube, livestream, phim hhpanda (phát ngay trong giao diện) |
+| **media** | Nghe nhạc, xem YouTube, livestream (phát ngay trong giao diện) |
 | **notes** | Ghi, xem, xoá ghi chú |
 | **vision** | Chụp và phân tích màn hình bằng LLM Vision |
 | **webcam** | Chụp và phân tích khung hình webcam |
@@ -171,7 +176,7 @@ Các agent đăng ký trong `engine/orchestrator/registry.py`, mã nguồn ở `
 | **history** | Xem lại lịch sử trò chuyện |
 | **image** | Tăng độ phân giải ảnh bằng Upscayl |
 | **project** | Kiểm tra dự án code, quét lỗi cú pháp |
-| **goose** | Mở giao diện Goose để ngài tự thao tác |
+| **goose** | Mở giao diện Goose để bạn tự thao tác |
 | **win_control** | Điều khiển ứng dụng Windows chạy nền qua cua-driver (mở app, bấm, nhập chữ), đổi trạng thái cửa sổ |
 | **dream** | Chạy ngay một chu kỳ Dream |
 
@@ -199,18 +204,18 @@ Nếu thiếu một bước, `tests/test_prompts_catalog.py` sẽ báo lỗi. Te
 
 ## 🧬 Tự Học, Tự Tiến Hóa, Dream, Tự Vá Lỗi
 
-Tất cả chạy nền khi hệ thống rảnh, không làm chậm lượt trò chuyện. Nếu ngài chat tiếp, tác vụ nền đang chạy nhường chỗ và chạy lại sau.
+Tất cả chạy nền khi hệ thống rảnh, không làm chậm lượt trò chuyện. Nếu bạn chat tiếp, tác vụ nền đang chạy nhường chỗ và chạy lại sau.
 
 ### 📖 Learning tự phản tư ([learning.py](engine/core/learning.py))
 
 1. **Đề xuất** (`learning_propose.md`): model đọc 3–5 lượt gần nhất trong DB và các kết quả agent thành công, rồi đề xuất tối đa 2 mục. Mỗi mục có `kind` là một trong `user_fact`, `preference`, `behaviour_lesson`, `routing_note`.
 2. **Phản biện** (`learning_critique.md`): model đặt mỗi đề xuất cạnh mục cũ gần nhất, rồi quyết định `skip`, `merge`, `replace` hoặc `new`.
 3. **Code chốt chặn**:
-   - Bằng chứng phải khớp nguyên văn hội thoại; với `user_fact`/`preference`, phải nằm trong lời của ngài.
+   - Bằng chứng phải khớp nguyên văn hội thoại; với `user_fact`/`preference`, phải nằm trong lời của bạn.
    - Không học trạng thái nhất thời ("lười", "mệt").
    - Luật hành vi không được bàn chuyện hỏi, xin phép, công cụ, agent hay thẻ.
    - `merge`/`replace` chỉ được đụng đúng mục cũ đã đưa cho model xem.
-4. **Gỡ bài học**: nếu ngài phủ nhận đúng điều vừa học, lượt học kế tiếp đề xuất `retract`. Code chỉ hoàn tác được mục do chính lượt học trước ghi: mục mới thì xoá, mục đã gộp thì trả về nội dung cũ.
+4. **Gỡ bài học**: nếu bạn phủ nhận đúng điều vừa học, lượt học kế tiếp đề xuất `retract`. Code chỉ hoàn tác được mục do chính lượt học trước ghi: mục mới thì xoá, mục đã gộp thì trả về nội dung cũ.
 5. **Workflow**: chuỗi tool chạy thành công được lưu vào `validated_workflows` và dùng lại khi câu lệnh khớp nguyên văn (không phân biệt hoa/thường). Theo thiết kế, không so khớp gần đúng và không bỏ dấu, vì bỏ dấu làm trùng các từ như `bật`/`bắt`, `tắt`/`tát`.
 6. `routing_note` chỉ được ghi thành **đề xuất** vào `data/wiki/System/Evolution.md` để người duyệt. Không bao giờ tự áp dụng.
 
@@ -225,7 +230,7 @@ Tất cả chạy nền khi hệ thống rảnh, không làm chậm lượt trò
 
 ### 🛡️ Self-Healing ([self_healing.py](engine/core/self_healing.py))
 - Quét log mỗi 60 giây khi rảnh. LLM phân loại lỗi (`CODE_BUG`, `TRANSIENT`, `CONFIG`, `DEPENDENCY`, `OTHER`) và ghi một mục vào `data/wiki/System/Errors.md`.
-- Với lỗi code, Jarvis **xin ngài duyệt** trên phiên WebUI trước khi nhờ Goose CLI sửa đúng một tệp. Không có phiên để duyệt thì không sửa.
+- Với lỗi code, Jarvis **xin bạn duyệt** trên phiên WebUI trước khi nhờ Goose CLI sửa đúng một tệp. Không có phiên để duyệt thì không sửa.
 
 ---
 
@@ -293,9 +298,46 @@ Danh sách nặng (agents, hooks, skills, prompts, commands, plugins) lấy từ
 - **3 skill** trong `skills/`: `legal`, `officecli`, `self_evolution`.
 - **Hook & plugin**: các sự kiện `on_startup`, `on_shutdown`, `ON_MESSAGE_RECEIVE`, `ON_RESPONSE_GENERATE`, nạp plugin `.py`/`.ts` động.
 - **Tự cài extension** (`install_extension`): nạp nóng plugin/skill/hook mới từ URL hoặc code, không cần khởi động lại.
-- **MCP** (`config/mcp_config.json`): `wikipedia-mcp`, `gitnexus`, `context7`, `headroom`, `ScraplingServer`, `codebase-memory-mcp`.
+- **MCP** (`config/mcp_config.json`): `wikipedia-mcp` (bật sẵn); `gitnexus`, `headroom`, `codebase-memory-mcp` (có cấu hình, mặc định tắt). Scrapling và cua-driver **không** phải MCP server: JARVIS gọi trực tiếp, xem [Công cụ nền tảng](#-công-cụ-nền-tảng-cào-web-và-điều-khiển-windows).
 - **Command Bar**: `/tên_lệnh <tham số>` chạy lệnh trong `commands/` (gõ `/tên_lệnh` trống để JARVIS hỏi từng tham số); `@agent câu lệnh` gọi thẳng agent (bước 1 của router). Trang Commands và Agents trong Settings ghi đúng cú pháp này.
 - **Telegram Bot**: điều khiển từ xa, xác thực Chat ID. Lệnh `/agents` đọc danh bạ từ `prompt/tools.md`.
+
+---
+
+## 🔧 Công Cụ Nền Tảng: Cào Web và Điều Khiển Windows
+
+Hai thành phần này JARVIS gọi **trực tiếp từ code**, không đi qua MCP Hub và không nằm trong `config/mcp_config.json`.
+
+### Cào dữ liệu web (Scrapling)
+
+Mã nguồn: [`engine/tools/browser.py`](engine/tools/browser.py). Dùng Scrapling thay cho Playwright thuần, theo hai tầng:
+
+| Tầng | Cách chạy | Khi nào dùng |
+|------|-----------|--------------|
+| `AsyncFetcher` | Yêu cầu HTTP giả vân tay TLS và header của trình duyệt, không mở trình duyệt | Mặc định: nhanh và nhẹ |
+| `StealthyFetcher` | Trình duyệt headless (Patchright), hướng tới vượt trang chống bot như Cloudflare | Dự phòng khi tầng 1 bị chặn, hoặc trang cần JavaScript mới ra nội dung (vd. trang liệt kê sản phẩm) |
+
+- `StealthyFetcher` ưu tiên Edge/Chrome đã cài sẵn trên máy, không dùng bản "Chrome for Testing" đi kèm (bản đó có thể không khởi động được trên một số máy Windows).
+- Nơi dùng: tin tức (Google News RSS, DuckDuckGo), giá sản phẩm ở các trang bán lẻ đã duyệt (`shop_engine`), văn bản pháp luật (`legal_engine`), tra cứu của `@plans` (`web_research`), tìm tin tuyển dụng (`@jobs`), thời tiết, Vietlott.
+- Kết quả tool được lọc các dòng nghi prompt injection trước khi vào prompt (`scrub_untrusted`, xem mục [Bảo mật](#-bảo-mật)).
+
+### Điều khiển Windows (cua-driver)
+
+Agent `win_control` ([`engine/tools/windows_control.py`](engine/tools/windows_control.py)) điều khiển ứng dụng Windows chạy nền, không chiếm chuột và bàn phím, bằng [cua-driver](https://github.com/trycua/cua). cua-driver đọc cây giao diện qua UI Automation (UIA); JARVIS thao tác theo `element_index`, không bấm theo toạ độ.
+
+**Cài cua-driver** (PowerShell, một lần):
+
+```powershell
+irm https://cua.ai/driver/install.ps1 | iex
+```
+
+JARVIS tìm `cua-driver.exe` theo thứ tự: biến `CUA_DRIVER_PATH` → `PATH` → `%LOCALAPPDATA%\Programs\Cua\cua-driver\bin`. Chưa cài thì lệnh `win_control` báo "chưa tìm thấy cua-driver".
+
+- **Cách gọi**: mỗi lệnh, JARVIS bật một tiến trình `cua-driver mcp` (nói chuyện qua stdio, khởi động khoảng 0,2 giây, không cần daemon hay Docker) rồi đóng lại. Đây là kết nối trực tiếp của code, **không** phải MCP server trong `config/mcp_config.json`.
+- **Cách chạy**: LLM đang dùng chọn từng bước dưới dạng JSON, chỉ dùng chữ (không cần vision). Tối đa `CUA_MAX_STEPS` bước mỗi lệnh (mặc định 12).
+- **An toàn**: mặc định (`CUA_CONFIRM=each`) hỏi xác nhận trước mỗi thao tác làm thay đổi máy; nút có nhãn Delete/Uninstall/Xóa… luôn hỏi dù đặt `off`. Chỉ cho phép các tool nhắm vào phần tử theo `element_index` và một tiến trình cụ thể: không có bấm theo toạ độ x/y, không nhập chữ vào cả màn hình.
+- **Phần cua-driver không thấy**: taskbar và Start/Search menu đi qua `pywinauto` (UIA). Phóng to/thu nhỏ/khôi phục cửa sổ cũng qua `pywinauto`, có đọc lại để xác minh.
+- Mở/đóng ứng dụng theo tên là việc của agent `desktop` (PowerShell + Start Menu), tách với `win_control`.
 
 ---
 
@@ -313,7 +355,7 @@ Tệp thả vào `data/documents/` (hoặc `RAG_WATCH_FOLDER`) cũng được wa
 
 ## 💼 Tìm Việc (`@jobs`)
 
-JARVIS phỏng vấn ngài để tạo hồ sơ + CV PDF tiếng Việt, tự tìm tin tuyển dụng **có email nhận CV** mỗi sáng (sau 08:00), soạn thư xin việc, và chỉ gửi qua Gmail khi ngài duyệt.
+JARVIS phỏng vấn bạn để tạo hồ sơ + CV PDF tiếng Việt, tự tìm tin tuyển dụng **có email nhận CV** mỗi sáng (sau 08:00), soạn thư xin việc, và chỉ gửi qua Gmail khi bạn duyệt.
 
 Cấu hình Gmail (một lần): bật Xác minh 2 bước, tạo "Mật khẩu ứng dụng" tại `myaccount.google.com/apppasswords`, rồi tự thêm vào `.env`:
 
@@ -375,6 +417,7 @@ Dữ liệu nằm trong `data/jobs/` (hồ sơ, CV, danh sách chờ, nhật ký
 - llama.cpp server: LLM tại `:8080`, embeddings tại `:8081`.
 - Redis tại port 6379 (Windows native hoặc WSL).
 - `yt-dlp` trong PATH (cho tìm kiếm YouTube).
+- Tùy chọn: [cua-driver](https://github.com/trycua/cua) cho agent `win_control`. Cài bằng PowerShell: `irm https://cua.ai/driver/install.ps1 | iex` (xem [chi tiết](#-công-cụ-nền-tảng-cào-web-và-điều-khiển-windows)).
 
 ### Các bước
 
@@ -409,7 +452,7 @@ Danh sách đầy đủ kèm giải thích nằm trong [`.env.example`](.env.exa
 | `LOCAL_EMBED_MODEL` | `nomic-embed-text-v1.5-q8_0` | Model embeddings |
 | `EDGE_TTS_ENABLED` / `VIENEU_TTS_ENABLED` | `true` / `false` | Chọn engine TTS; không được bật cả hai |
 | `TTS_LOCAL_MODEL` | `vi-VN-NamMinhNeural` | Giọng Edge-TTS |
-| `USER_NAME` / `HONORIFIC` | `erikpuw` / `thưa ngài` | Cá nhân hóa |
+| `USER_NAME` / `HONORIFIC` | (trống) | Chỉ được trang Settings lưu và hiển thị. Cách JARVIS xưng hô khi trò chuyện ("tôi" – "ngài") nằm ở `prompt/identity.md` và `prompt/user.md`, không lấy từ hai biến này |
 | `REDIS_URL` | `redis://localhost:6379` | Redis |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_ALLOWED_CHAT_IDS` | tùy chọn | Telegram Bot |
 | `JARVIS_CORS_ORIGINS` | `localhost:5173`, `localhost:8340` | Danh sách origin (phân cách dấu phẩy) được phép gọi API/WebSocket từ trình duyệt. `*` bị bỏ qua. Trang cùng host với server (`https://<ip>:8340`) luôn được phép |
@@ -442,7 +485,7 @@ Cách này không cần mở port trên router và không lộ IP ra ngoài.
 | TTS/STT | `/api/tts/voices`, `/api/tts/voice`, `/api/tts/voices/clone`, `/api/tts-test`, `/api/stt` |
 | Memory Center | `/api/memory-control/{summary,dependencies,update,delete}`, `/api/learnings/*`, `/api/memories/*`, `/api/notes/*`, `/api/workflows/*`, `/api/outcomes/list`, `/api/memory-registry/list` |
 | Hội thoại | `/api/history`, `/api/conversations`, `/api/conversations/sessions`, `/api/conversations/session/{id}`, `/api/conversations/update`, `/api/conversations/delete` |
-| Media | `/api/media/search`, `/api/media/resolve`, `/api/media/episodes`, `/api/media/local/{path}` |
+| Media | `/api/media/search`, `/api/media/resolve`, `/api/media/local/{path}` |
 | RAG & tệp | `/api/rag/status`, `DELETE /api/rag/document`, `/api/upload` |
 | MCP | `/api/mcp/servers` (trạng thái thật từ hub; `args` được che giá trị bí mật) |
 | Khác | `/api/command-bar/skills`, `/api/command-bar/context`, `/api/feedback`, `/api/feedback/stats`, `POST /api/dream/run`, `/api/agents/goose/launch` |
