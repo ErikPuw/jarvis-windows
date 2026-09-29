@@ -24,6 +24,8 @@ You speak or type in Vietnamese, and JARVIS understands and **does real work** o
 
 **What do you need?** Windows 10/11, Python 3.11+, Node.js 18+, Chrome, a llama.cpp server (LLM and embeddings) and Redis. Details in [Installation and configuration](#-installation-and-configuration).
 
+**Forms of address:** JARVIS calls itself "tôi" (I) and addresses the user as "ngài" (sir) — a hard rule in [`prompt/identity.md`](prompt/identity.md); edit that file and `prompt/user.md` to change it. This document says "you" for the reader.
+
 > **Status:** a personal project under active development. Found a bug or have an idea? Open an [issue](https://github.com/erikpuw/jarvis-windows/issues) (templates included).
 >
 > JARVIS is built for Vietnamese: prompts, voice recognition (`vi-VN`), TTS voices and most command keywords are Vietnamese. Example commands below keep the original Vietnamese with an English gloss.
@@ -40,16 +42,17 @@ You speak or type in Vietnamese, and JARVIS understands and **does real work** o
 8. [Memory, Memory Center and Obsidian Wiki](#️-memory-memory-center-and-obsidian-wiki)
 9. [Frontend](#-frontend)
 10. [Extending: Commands, Skills, Hooks, MCP, Telegram](#-extending-commands-skills-hooks-mcp-telegram)
-11. [Document Store (`@rag`)](#-document-store-rag)
-12. [Job Search (`@jobs`)](#-job-search-jobs)
-13. [System Architecture](#️-system-architecture)
-14. [Installation and Configuration](#-installation-and-configuration)
-15. [API](#-api)
-16. [Directory Structure](#-directory-structure)
-17. [Testing and Measurement](#-testing-and-measurement)
-18. [Security](#-security)
-19. [Changelog](#-changelog)
-20. [License & Disclaimer](#-license--disclaimer)
+11. [Core Tooling: Web Scraping and Windows Control](#-core-tooling-web-scraping-and-windows-control)
+12. [Document Store (`@rag`)](#-document-store-rag)
+13. [Job Search (`@jobs`)](#-job-search-jobs)
+14. [System Architecture](#️-system-architecture)
+15. [Installation and Configuration](#-installation-and-configuration)
+16. [API](#-api)
+17. [Directory Structure](#-directory-structure)
+18. [Testing and Measurement](#-testing-and-measurement)
+19. [Security](#-security)
+20. [Changelog](#-changelog)
+21. [License & Disclaimer](#-license--disclaimer)
 
 ---
 
@@ -62,6 +65,8 @@ You speak or type in Vietnamese, and JARVIS understands and **does real work** o
 | **Local LLM** | Gemma 4 E4B-it QAT (current profile) or Qwen3.5-9B, served by llama.cpp at `http://localhost:8080/v1`; handles both text and images |
 | **Local embeddings** | `nomic-embed-text-v1.5-q8_0` at `http://localhost:8081/v1`, used for RAG and semantic memory |
 | **Vietnamese voice** | Speech recognition via the Web Speech API (`vi-VN`) with recognition-error correction. Speech output via Edge-TTS (`vi-VN-NamMinhNeural`) or VieNeu streaming (port 8082); only one may be enabled |
+| **Windows control** | The `win_control` agent uses cua-driver (UI Automation) to drive apps in the background without taking the mouse; asks before every machine-changing action. How to install cua-driver: see [details](#-core-tooling-web-scraping-and-windows-control) |
+| **Web scraping** | Two-tier Scrapling: browser-imitating HTTP first, a headless browser as fallback for bot-protected or JavaScript-only pages. Used for news, product prices, law, jobs, weather, Vietlott |
 | **Two-tier routing** | The gate only decides **chat or work**, without knowing which agents exist. The orchestrator picks agents via native tool calling and can chain several agents |
 | **Controlled offers** | While you are just chatting, Jarvis offers actions it can take using `<ask_user>`/`<action_run>` tags. When you reply "yes" (`ừ`), code runs exactly the offered tool — the LLM does not guess again |
 | **Centralised prompts** | All prompt text lives in `prompt/*.md`; the code that assembles prompts lives in `engine/prompts/` |
@@ -83,7 +88,7 @@ You speak or type in Vietnamese, and JARVIS understands and **does real work** o
 Each extra is its own agent in `engine/agents/` (full list in [18 task agents](#-18-task-agents)):
 
 - **Vietnam daily life**: weather, news, gold/fuel prices and exchange rates, lunar calendar, zodiac, CGV showtimes, Epic free games, maps and directions.
-- **Entertainment**: music, YouTube, livestreams, movies.
+- **Entertainment**: music, YouTube, livestreams.
 - **Specialised lookups**: Vietnamese legal documents; Vietlott (statistics, backtests, no predictions).
 - **Work**: Outlook email and calendar, notes, `@jobs` job search and cover-letter drafting (sends only after you approve).
 
@@ -160,7 +165,7 @@ Agents are registered in `engine/orchestrator/registry.py`; source code is in `e
 |-------|---------------|
 | **desktop** | Open/close Windows apps, keeping the app's original name |
 | **search** | Weather, news, gold/fuel prices and exchange rates, lunar calendar, zodiac, CGV showtimes, Epic free games, administrative units, maps and directions |
-| **media** | Music, YouTube, livestreams, hhpanda movies (played inside the UI) |
+| **media** | Music, YouTube, livestreams (played inside the UI) |
 | **notes** | Write, view, delete notes |
 | **vision** | Capture and analyse the screen with a vision LLM |
 | **webcam** | Capture and analyse a webcam frame |
@@ -295,9 +300,46 @@ Heavy lists (agents, hooks, skills, prompts, commands, plugins) come from `/api/
 - **3 skills** in `skills/`: `legal`, `officecli`, `self_evolution`.
 - **Hooks & plugins**: events `on_startup`, `on_shutdown`, `ON_MESSAGE_RECEIVE`, `ON_RESPONSE_GENERATE`; dynamic loading of `.py`/`.ts` plugins.
 - **Self-installing extensions** (`install_extension`): hot-load new plugins/skills/hooks from a URL or code, no restart needed.
-- **MCP** (`config/mcp_config.json`): `wikipedia-mcp`, `gitnexus`, `context7`, `headroom`, `ScraplingServer`, `codebase-memory-mcp`.
+- **MCP** (`config/mcp_config.json`): `wikipedia-mcp` (enabled); `gitnexus`, `headroom`, `codebase-memory-mcp` (configured, disabled by default). Scrapling and cua-driver are **not** MCP servers: JARVIS calls them directly, see [Core tooling](#-core-tooling-web-scraping-and-windows-control).
 - **Command Bar**: `/command_name <args>` runs a command from `commands/` (type `/command_name` with no args and JARVIS asks for each argument); `@agent message` calls an agent directly (router step 1). The Commands and Agents pages in Settings document this exact syntax.
 - **Telegram bot**: remote control with Chat ID authentication. The `/agents` command reads the directory from `prompt/tools.md`.
+
+---
+
+## 🔧 Core Tooling: Web Scraping and Windows Control
+
+JARVIS calls these two **directly from code**: they do not go through the MCP hub and are not listed in `config/mcp_config.json`.
+
+### Web scraping (Scrapling)
+
+Source: [`engine/tools/browser.py`](engine/tools/browser.py). Uses Scrapling instead of plain Playwright, in two tiers:
+
+| Tier | How it runs | When |
+|------|-------------|------|
+| `AsyncFetcher` | Plain HTTP request imitating a browser's TLS fingerprint and headers; no browser | Default: fast and light |
+| `StealthyFetcher` | Headless browser (Patchright), aimed at bot-protected pages such as Cloudflare | Fallback when tier 1 is blocked, or the page needs JavaScript to show its content (e.g. product listings) |
+
+- `StealthyFetcher` prefers an already-installed Edge/Chrome over the bundled "Chrome for Testing" build (which may fail to launch on some Windows machines).
+- Used by: news (Google News RSS, DuckDuckGo), product prices on approved retail sites (`shop_engine`), legal documents (`legal_engine`), `@plans` lookups (`web_research`), job posts (`@jobs`), weather, Vietlott.
+- Tool results are filtered for suspected prompt-injection lines before they reach prompts (`scrub_untrusted`, see [Security](#-security)).
+
+### Windows control (cua-driver)
+
+The `win_control` agent ([`engine/tools/windows_control.py`](engine/tools/windows_control.py)) drives Windows apps in the background, without taking over the mouse or keyboard, using [cua-driver](https://github.com/trycua/cua). cua-driver reads the UI tree through UI Automation (UIA); JARVIS acts by `element_index`, never by screen coordinates.
+
+**Install cua-driver** (PowerShell, once):
+
+```powershell
+irm https://cua.ai/driver/install.ps1 | iex
+```
+
+JARVIS looks for `cua-driver.exe` in this order: the `CUA_DRIVER_PATH` variable → `PATH` → `%LOCALAPPDATA%\Programs\Cua\cua-driver\bin`. If it is not installed, `win_control` reports "cua-driver not found".
+
+- **How it is called**: for each command JARVIS starts one `cua-driver mcp` process (talking over stdio, ~0.2 s startup, no daemon or Docker) and closes it afterwards. This is a direct connection from code, **not** an MCP server in `config/mcp_config.json`.
+- **How it runs**: the active LLM picks each step as JSON, text only (no vision needed). At most `CUA_MAX_STEPS` steps per command (default 12).
+- **Safety**: by default (`CUA_CONFIRM=each`) it asks for confirmation before every action that changes the machine; buttons labelled Delete/Uninstall/Xóa… always ask, even with `off`. Only tools that target an element by `element_index` and a specific process are allowed: no x/y coordinate clicks, no typing into the whole screen.
+- **What cua-driver cannot see**: the taskbar and the Start/Search menu go through `pywinauto` (UIA). Maximise/minimise/restore also use `pywinauto`, reading the state back to verify.
+- Opening/closing apps by name belongs to the `desktop` agent (PowerShell + Start Menu), separate from `win_control`.
 
 ---
 
@@ -377,6 +419,7 @@ Data lives in `data/jobs/` (profile, CV, pending list, sent log). It never appli
 - llama.cpp server: LLM on `:8080`, embeddings on `:8081`.
 - Redis on port 6379 (native Windows or WSL).
 - `yt-dlp` on PATH (for YouTube search).
+- Optional: [cua-driver](https://github.com/trycua/cua) for the `win_control` agent. Install in PowerShell: `irm https://cua.ai/driver/install.ps1 | iex` (see [details](#-core-tooling-web-scraping-and-windows-control)).
 
 ### Steps
 
@@ -411,7 +454,7 @@ The full list with comments is in [`.env.example`](.env.example). The most impor
 | `LOCAL_EMBED_MODEL` | `nomic-embed-text-v1.5-q8_0` | Embeddings model |
 | `EDGE_TTS_ENABLED` / `VIENEU_TTS_ENABLED` | `true` / `false` | Pick the TTS engine; both may not be enabled |
 | `TTS_LOCAL_MODEL` | `vi-VN-NamMinhNeural` | Edge-TTS voice |
-| `USER_NAME` / `HONORIFIC` | `erikpuw` / `thưa ngài` | Personalisation (name / form of address, "sir") |
+| `USER_NAME` / `HONORIFIC` | (empty) | Only stored and shown by the Settings page. How JARVIS addresses you in conversation ("tôi" – "ngài", i.e. "I" – "sir") lives in `prompt/identity.md` and `prompt/user.md`, not in these two variables |
 | `REDIS_URL` | `redis://localhost:6379` | Redis |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_ALLOWED_CHAT_IDS` | optional | Telegram bot |
 | `JARVIS_CORS_ORIGINS` | `localhost:5173`, `localhost:8340` | Comma-separated browser origins allowed to call the API/WebSocket. `*` is ignored. Pages served from the same host as the server (`https://<ip>:8340`) are always allowed |
@@ -444,7 +487,7 @@ No router port forwarding needed, and your IP is not exposed.
 | TTS/STT | `/api/tts/voices`, `/api/tts/voice`, `/api/tts/voices/clone`, `/api/tts-test`, `/api/stt` |
 | Memory Center | `/api/memory-control/{summary,dependencies,update,delete}`, `/api/learnings/*`, `/api/memories/*`, `/api/notes/*`, `/api/workflows/*`, `/api/outcomes/list`, `/api/memory-registry/list` |
 | Conversations | `/api/history`, `/api/conversations`, `/api/conversations/sessions`, `/api/conversations/session/{id}`, `/api/conversations/update`, `/api/conversations/delete` |
-| Media | `/api/media/search`, `/api/media/resolve`, `/api/media/episodes`, `/api/media/local/{path}` |
+| Media | `/api/media/search`, `/api/media/resolve`, `/api/media/local/{path}` |
 | RAG & files | `/api/rag/status`, `DELETE /api/rag/document`, `/api/upload` |
 | MCP | `/api/mcp/servers` (live status from the hub; secret values in `args` are redacted) |
 | Other | `/api/command-bar/skills`, `/api/command-bar/context`, `/api/feedback`, `/api/feedback/stats`, `POST /api/dream/run`, `/api/agents/goose/launch` |
