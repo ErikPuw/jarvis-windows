@@ -10,8 +10,6 @@ log = logging.getLogger("jarvis.redis")
 
 redis_client: Optional[aioredis.Redis] = None
 _redis_process: Optional[subprocess.Popen] = None
-
-
 _CLI_CANDIDATES = ["redis-cli", "memurai-cli"]
 
 

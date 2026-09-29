@@ -65,6 +65,7 @@ _background_tasks: set[asyncio.Task] = set()
 _telegram_bot = None
 _telegram_bot_task: Optional[asyncio.Task] = None
 _mcp_connect_task: Optional[asyncio.Task] = None
+_reflection_lock = asyncio.Lock()
 _uvicorn_server = None
 _active_input_channel: str | None = None
 _active_input_owner: object | None = None
@@ -186,7 +187,6 @@ LOCAL_MODEL   = os.getenv("LOCAL_MODEL")
 VISION_MODEL  = os.getenv("VISION_MODEL")
 USER_NAME = os.getenv("USER_NAME")
 HONORIFIC = os.getenv("HONORIFIC")
-
 # ---------------------------------------------------------------------------
 # Speech-to-Text Corrections
 # ---------------------------------------------------------------------------
@@ -224,6 +224,8 @@ async def safe_ws_send_json(ws: WebSocket, data: dict) -> bool:
     """
     if not ws:
         return False
+    from engine.prompts.honorific import personalize_payload
+    data = personalize_payload(data)
     dispatcher = getattr(ws, "_event_dispatcher", None)
     if dispatcher is not None:
         return await dispatcher.enqueue(data)
@@ -544,8 +546,7 @@ async def lifespan(application: FastAPI):
         log.warning(f"Hook loader init failed: {e}")
 
     try:
-        from engine.server.mcp_server import initialize_mcp, get_mcp_hub
-        initialize_mcp()
+        from engine.server.mcp_server import get_mcp_hub
         hub = get_mcp_hub()
         log.info(f"MCP server ready: {hub.get_stats()['total_servers']} servers loaded")
         # Kết nối MCP servers (agentmemory, browser, gitnexus...)
@@ -693,6 +694,30 @@ async def lifespan(application: FastAPI):
     except Exception as jobs_err:
         log.warning(f"Failed to start jobs scheduler: {jobs_err}")
 
+    # RAG tự index tệp thả vào thư mục theo dõi (RAG_WATCH_FOLDER, mặc định data/documents)
+    try:
+        from engine.core.rag_engine import get_rag_engine
+        from engine.core.rag_watcher import get_rag_watcher
+        from engine.server.llm_server import get_embed_client
+
+        _rag_embed = get_embed_client()
+        if _rag_embed is not None:
+            get_rag_engine().set_embed_client(_rag_embed)
+            _watch_dir = Path(os.getenv("RAG_WATCH_FOLDER") or "data/documents")
+            if not _watch_dir.is_absolute():
+                _watch_dir = Path(__file__).parent / _watch_dir
+            _rag_watcher = get_rag_watcher(str(_watch_dir))
+            _rag_watcher.start(asyncio.get_running_loop())
+            for _rag_coro in (_rag_watcher.process_queue(), _rag_watcher.scan_existing()):
+                _rag_task = asyncio.create_task(_rag_coro)
+                _background_tasks.add(_rag_task)
+                _rag_task.add_done_callback(_background_tasks.discard)
+            log.info(f"📚 RAG watcher started: {_watch_dir}")
+        else:
+            log.warning("RAG watcher not started: embedding client is not configured")
+    except Exception as rag_watch_err:
+        log.warning(f"Failed to start RAG watcher: {rag_watch_err}")
+
     yield
 
     async def _shutdown_sequence():
@@ -708,6 +733,14 @@ async def lifespan(application: FastAPI):
             )
         _telegram_bot = None
         _telegram_bot_task = None
+
+        try:
+            from engine.core.rag_watcher import get_rag_watcher
+            _rag_watcher = get_rag_watcher()
+            if _rag_watcher is not None:
+                _rag_watcher.stop()
+        except Exception as e:
+            log.warning(f"RAG watcher shutdown failed: {e}")
 
         # Cancel tất cả background tasks (security monitor, voice streamer, WS reader...)
         if _background_tasks:
@@ -1341,6 +1374,8 @@ async def voice_handler(ws: WebSocket):
         if _active_ws_session is ws:
             _active_ws_session = None
         _active_voice_connections = max(0, _active_voice_connections - 1)
+
+
 
 
 # ---------------------------------------------------------------------------

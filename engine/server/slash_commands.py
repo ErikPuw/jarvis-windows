@@ -64,7 +64,7 @@ COMMAND_ACTION_PHRASES: dict[str, str] = {
     "weather_search": "Tra cứu thời tiết",
     "search_news": "Tìm kiếm tin tức",
     "search_products": "Tra cứu giá sản phẩm",
-    "search_media": "Tìm kiếm nhạc/video",
+    "search_media": "Tìm kiếm phim/video",
     "get_market_data": "Tra cứu dữ liệu thị trường",
     "get_cgv_movies": "Xem phim đang chiếu",
     "get_epic_free_games": "Xem game miễn phí Epic",

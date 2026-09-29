@@ -21,7 +21,7 @@ log = logging.getLogger("jarvis.actions")
 # LLM vòng 2: prompt tóm tắt kết quả tool nằm ở prompt/tool_summary.md, ghép bởi
 # engine.prompts.results (quy tắc định dạng riêng vẫn do từng tool module sở hữu).
 
-
+# Định nghĩa các tool theo OpenAI Function Calling schema, xem qua ở thư mục commands
 async def execute_tool(name: str, arguments: dict, ws=None, safe_ws_send_json=None, conversation_history: list = None, **kwargs) -> str | dict:
     """Thực thi tool và tự động ghi lại Trace JSON phục vụ tự tiến hóa."""
     import time

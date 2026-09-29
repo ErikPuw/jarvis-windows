@@ -38,7 +38,7 @@ async def search_media(query: str, source: str = "auto") -> list[dict]:
 def _strip_noise(text: str) -> str:
     """Strip common routing keywords that LLM sometimes leaves in the query."""
     _noise = re.compile(
-        r'\b(?:phim|xem\s*phim|youtube|video|nhạc|music|bài\s*hát|nghe|mở|tìm)\b',
+        r'\b(?:hhpanda|hhpada|hhpand|hpanda|phim|xem\s*phim|youtube|video|nhạc|music|bài\s*hát|nghe|mở|tìm)\b',
         re.IGNORECASE
     )
     return _noise.sub('', text).strip()
@@ -182,11 +182,7 @@ def _yt_search(query: str, max_results: int = 12) -> list[dict]:
 
 
 def format_media_table(results: list[dict]) -> str:
-    """Chuyển list kết quả search_media thành bảng Markdown có poster thumbnail.
-    
-    Format bảng:
-    - YouTube: thumbnail nhỏ | tên video + kênh + thời lượng | link YouTube
-    """
+    """Chuyển list kết quả search_media thành bảng Markdown YouTube: thumbnail nhỏ | tên video | kênh | thời lượng."""
     if not results:
         return ""
 
@@ -291,25 +287,15 @@ async def execute_media_search(arguments: dict, ws=None, safe_ws_send_json=None)
         except Exception:
             pass
 
-    # Phân loại source dựa trên từ khóa trong câu lệnh thô
-    if source == "auto":
-        user_text_lower = query.lower()
-        if any(kw in user_text_lower for kw in ["youtube", "video", "nhạc", "nghe nhạc", "bài hát"]):
-            source = "youtube"
     query = _strip_noise(query)
-
     results = await search_media(query, source)
     if not results:
         return f"Không tìm thấy nội dung cho '{query}'."
 
-    # Đồng bộ nguồn thực tế tìm thấy từ phần tử đầu tiên của kết quả
+    # Nguồn thực tế lấy từ kết quả đầu tiên (local không có embed_url nên không tự phát)
     actual_source = results[0].get("source", source)
-
-    embed_url = ""
-    resolved_title = ""
-    if actual_source == "youtube":
-        embed_url = results[0].get("embed_url", "")
-        resolved_title = results[0].get("title", "")
+    embed_url = results[0].get("embed_url", "") if actual_source == "youtube" else ""
+    resolved_title = results[0].get("title", "") if actual_source == "youtube" else ""
 
     lines = [f"Tìm thấy {len(results)} kết quả cho '{query}':", "", format_media_table(results)]
 
@@ -327,11 +313,11 @@ async def execute_media_search(arguments: dict, ws=None, safe_ws_send_json=None)
             except Exception as ws_err:
                 log.warning(f"Failed to send media_open via WebSocket: {ws_err}")
 
-    text = "\n".join(lines)
     return {
-        "text": text,
+        "text": "\n".join(lines),
         "results": results,
         "query": query,
         "embed_url": embed_url,
         "title": resolved_title,
+        "episodes": [],
     }

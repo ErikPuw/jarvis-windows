@@ -28,9 +28,7 @@ async def get_tts_client() -> httpx.AsyncClient:
                 _tts_client = httpx.AsyncClient(timeout=httpx.Timeout(60.0, read=90.0))
     return _tts_client
 
-
 _on_success_callback = None
-
 
 def _env_enabled(name: str, default: bool = False) -> bool:
     value = os.getenv(name)

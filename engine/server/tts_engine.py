@@ -410,6 +410,8 @@ def prepare_tts_text(text: str, engine: str = "edge") -> str:
     """Văn bản chuẩn cho TTS. engine: "vieneu" (giữ cue [cười]...) hoặc "edge" (bỏ cue)."""
     if not text:
         return ""
+    from engine.prompts.honorific import personalize
+    text = personalize(text)
     text = re.sub(r"<action_run>.*?(?:</action_run>|$)", " ", text, flags=re.S)
     cues = []
 

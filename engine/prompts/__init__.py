@@ -10,6 +10,11 @@ _DEFAULTS: dict[str, dict[str, str]] = {
 }
 
 
+def _personalize(text: str) -> str:
+    from engine.prompts.honorific import personalize
+    return personalize(text)
+
+
 def load(name: str, **vars) -> str:
     """Nạp template prompt/<name>.md, cache nội dung và format biến dạng {var}.
     Kiểm tra thiếu biến và báo KeyError nếu template yêu cầu biến chưa được cung cấp."""
@@ -25,7 +30,7 @@ def load(name: str, **vars) -> str:
     field_names = {fname for _, fname, _, _ in formatter.parse(template) if fname is not None}
 
     if not field_names and not vars:
-        return template
+        return _personalize(template)
 
     merged_vars = dict(_DEFAULTS.get(name, {}))
     merged_vars.update(vars)
@@ -34,7 +39,7 @@ def load(name: str, **vars) -> str:
     if missing:
         raise KeyError(f"Missing required prompt variables for '{name}': {missing}")
 
-    return template.format(**merged_vars)
+    return _personalize(template.format(**merged_vars))
 
 
 def clear_cache():

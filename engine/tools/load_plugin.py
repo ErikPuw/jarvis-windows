@@ -150,5 +150,3 @@ class PluginLoader:
     def unload_all(self):
         for name in list(self._plugins.keys()):
             self.unload(name)
-
-

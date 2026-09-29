@@ -715,6 +715,7 @@ def delete_pin_from_db(lat: float, lng: float) -> bool:
         return False
 
 
+
 # ---------------------------------------------------------------------------
 # Semantic Memory — Vector search with turbovec
 # ---------------------------------------------------------------------------

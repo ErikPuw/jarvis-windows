@@ -8,7 +8,7 @@ log = logging.getLogger("jarvis.router.fast_paths")
 # "Ghi chú (Notepad)": model dịch tên app rồi kèm tên gốc trong ngoặc; Windows chỉ biết tên gốc.
 _ORIGINAL_APP_NAME = re.compile(r"\(\s*([A-Za-z0-9][A-Za-z0-9 .+#&'-]*?)\s*\)")
 
-
+# Tên gọi khác của agent khi gõ @; còn lại tra thẳng AGENT_REGISTRY (có bỏ tiền tố agent_).
 VOICE_CONTROL = re.compile(  # nguyên văn route_agents._VOICE_CONTROL
     r"^\s*(?:(?:hãy|xin|vui\s+lòng|jarvis)[,\s]+)*(?:"
     r"(?:điều\s+khiển|control)\s+(?:máy|màn\s+hình|chuột|windows)\b"

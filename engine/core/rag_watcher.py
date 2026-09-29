@@ -237,7 +237,14 @@ class RAGFolderWatcher:
         try:
             from engine.core.rag_engine import get_rag_engine
             rag = get_rag_engine()
-            await rag.sync_lifecycle(active_paths)
+            # sync_lifecycle xoá mọi chunk không nằm trong danh sách: chỉ được dọn chunk của CHÍNH thư mục
+            # thả file, không đụng tài liệu lưu qua @rag (nằm ngoài thư mục này).
+            watch_root = self.watch_folder.resolve()
+            outside = [
+                c["file_path"] for c in rag.chunks
+                if c.get("file_path") and watch_root not in Path(c["file_path"]).resolve().parents
+            ]
+            await rag.sync_lifecycle(active_paths + outside)
             
             # Dong bo DB watch
             conn = _get_watch_db()

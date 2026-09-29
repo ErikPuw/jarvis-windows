@@ -755,14 +755,12 @@ def _redact_args(args) -> list[str]:
 def _mcp_server_views(hub_status: dict) -> list[dict]:
     """One row per MCP server: config entries plus hub-only ones, with the hub's live
     status. Never args/env/headers — they carry API keys."""
-    from engine.server import mcp_server as _mcp
-    cfg: dict = {}
+    from engine.server.mcp_server import read_config
     try:
-        cfg_path = Path(_mcp.MCP_CONFIG_FILE)
-        if cfg_path.exists():
-            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        cfg = read_config()
     except Exception as e:
         log.warning(f"Error reading MCP config: {e}")
+        cfg = {}
     views: list[dict] = []
     for name, entry in (cfg.get("mcpServers") or {}).items():
         enabled = bool(entry.get("enabled", True))
@@ -786,10 +784,10 @@ async def api_settings_status(apps: bool = False):
     import server
     await asyncio.to_thread(server._update_session_tokens_from_log)
     _, env_dict = server._read_env()
-    l_key = (env_dict.get("LOCAL_API_KEY") or "").strip()
-    l_url = (env_dict.get("LOCAL_URL") or "").strip()
+    l_key = env_dict.get("LOCAL_API_KEY").strip()
+    l_url = env_dict.get("LOCAL_URL").strip()
     llm_ok = bool(l_key) and bool(l_url)
-    tts_ok = bool((env_dict.get("TTS_LOCAL_URL") or "").strip())
+    tts_ok = bool(env_dict.get("TTS_LOCAL_URL").strip())
     
     memory_count = 0
     try:
@@ -1026,6 +1024,8 @@ async def api_save_preferences(body: PreferencesUpdate):
     import server
     server._write_env_key("USER_NAME", body.user_name)
     server._write_env_key("HONORIFIC", body.honorific)
+    os.environ["USER_NAME"] = body.user_name  # áp dụng ngay, không cần khởi động lại
+    os.environ["HONORIFIC"] = body.honorific
     server._write_env_key("CALENDAR_ACCOUNTS", body.calendar_accounts)
     return {"success": True}
 
@@ -1084,6 +1084,67 @@ async def api_get_mcp_servers():
         return {"success": False, "error": str(e), "servers": []}
 
 
+class McpToggleBody(BaseModel):
+    enabled: bool
+
+
+class McpAddBody(BaseModel):
+    name: str
+    type: str = "stdio"
+    command: str | None = None
+    args: list[str] = []
+    url: str | None = None
+    env: dict[str, str] | None = None
+    headers: dict[str, str] | None = None
+    enabled: bool = True
+
+
+def _from_this_machine(request: Request) -> bool:
+    """Bật/tắt/thêm MCP server là chạy lệnh trên máy này: chỉ nhận từ loopback, không nhận từ LAN dù nằm trong danh sách IP cho phép."""
+    import ipaddress
+    try:
+        return ipaddress.ip_address(request.client.host).is_loopback
+    except (AttributeError, ValueError):
+        return False
+
+
+_MCP_FORBIDDEN = JSONResponse(
+    {"success": False, "error": "Chỉ quản lý MCP được từ chính máy chạy JARVIS."}, status_code=403
+)
+
+
+@router.post("/api/mcp/servers/{name}/enabled")
+async def api_mcp_set_enabled(name: str, body: McpToggleBody, request: Request):
+    if not _from_this_machine(request):
+        return _MCP_FORBIDDEN
+    from engine.server.mcp_server import set_server_enabled
+    try:
+        status = await set_server_enabled(name, body.enabled)
+    except KeyError:
+        return JSONResponse({"success": False, "error": "Không có máy chủ MCP này."}, status_code=404)
+    except Exception as e:
+        log.warning(f"MCP toggle failed: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+    return {"success": True, "status": status}
+
+
+@router.post("/api/mcp/servers")
+async def api_mcp_add_server(body: McpAddBody, request: Request):
+    if not _from_this_machine(request):
+        return _MCP_FORBIDDEN
+    from engine.server.mcp_server import add_server_config
+    try:
+        await add_server_config(body.name, body.model_dump(exclude={"name"}))
+    except ValueError as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=400)
+    except FileExistsError:
+        return JSONResponse({"success": False, "error": "Đã có máy chủ trùng tên."}, status_code=409)
+    except Exception as e:
+        log.warning(f"MCP add failed: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+    return {"success": True}
+
+
 @router.get("/api/graphfy")
 async def api_graphfy():
     """Structure map generated from the code (engine/UIUX/graphfy.py)."""
@@ -1114,14 +1175,17 @@ async def api_media_search(q: str = "", source: str = "youtube"):
 
 @router.get("/api/media/resolve")
 async def api_media_resolve(url: str = ""):
-    """Đổi link YouTube thành link nhúng (embed). Link khác không hỗ trợ: trả embed_url rỗng."""
     if not url:
         return {"error": "No URL"}
     import re
+    embed_url = ""
+    title = ""
     yt_match = re.search(r"(?:v=|youtu\.be/|/embed/)([a-zA-Z0-9_-]{11})", url)
     if yt_match:
-        return {"embed_url": f"https://www.youtube.com/embed/{yt_match.group(1)}", "title": ""}
-    return {"embed_url": "", "title": ""}
+        vid = yt_match.group(1)
+        return {"embed_url": f"https://www.youtube.com/embed/{vid}", "title": title}
+    # Chỉ YouTube được phát trong giao diện; trang phim (hhpanda) đã bỏ.
+    return {"embed_url": embed_url, "title": title}
 
 
 @router.get("/api/media/local/{path:path}")
@@ -1309,6 +1373,7 @@ async def api_command_bar_context():
     except Exception as e:
         log.error(f"Error in api_command_bar_context: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
+
 
 
 @router.post("/api/stt")
@@ -1638,7 +1703,6 @@ async def api_memories_delete(id: int):
 
 
 # -- Learning System Sync Endpoints (validated workflows + agent outcomes) ------
-
 
 @router.get("/api/workflows/list")
 async def api_workflows_list(

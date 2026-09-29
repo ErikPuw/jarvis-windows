@@ -465,7 +465,6 @@ class LearningEngine:
             log.info("🧹 Consolidated learnings: removed %d duplicate(s)", len(doomed))
         return len(doomed)
 
-
     # ------------------------------------------------------------------
     # Semantic duplicate detection (dùng chung embedder với SemanticMemoryEngine)
     # ------------------------------------------------------------------
@@ -1022,7 +1021,6 @@ class LearningEngine:
                 })
                 user_msg = None
         return pairs
-
 
     # ------------------------------------------------------------------
     # Truy xuất learnings
@@ -1626,7 +1624,6 @@ class LearningEngine:
             corrections.append(item)
         return corrections
 
-
     # Gate chỉ hiểu 3 bucket này. Từng có correction ghi expected_route là
     # câu tiếng Việt ("chỉ trả lời hội thoại") khiến gate in nguyên văn vào
     # prompt mà model nhỏ không map được — phải ép về bucket hợp lệ lúc ghi.
@@ -1770,43 +1767,6 @@ class LearningEngine:
         conn.commit()
         conn.close()
         return cur.lastrowid
-
-    def store_outcome_lesson(self, outcome_id: int, content: str, agent: str) -> bool:
-        """Chỉ lưu lesson tái sử dụng khi outcome agent đã xác nhận success."""
-        if not _is_valid_learning_text(content):
-            return False
-        conn = self._get_learning_db()
-        outcome = conn.execute("SELECT status, traces FROM agent_outcomes WHERE id=?", (outcome_id,)).fetchone()
-        import json
-        traces = json.loads(outcome["traces"] or "[]") if outcome else []
-        verified_success = bool(traces) and all(trace.get("outcome") == "success" for trace in traces)
-        if not outcome or outcome["status"] != "success" or not verified_success:
-            conn.close()
-            return False
-        from engine.core.memory import strip_emojis
-        normalized_content = strip_emojis(content.strip())
-        embedding = self._embed_text(normalized_content)
-        if embedding:
-            duplicate_id = self._find_semantic_duplicate(conn, "lesson", embedding)
-            if duplicate_id is not None:
-                conn.close()
-                log.info(
-                    "⏭️ Semantic duplicate outcome lesson skipped (matches id=%s): '%s'",
-                    duplicate_id,
-                    normalized_content,
-                )
-                return False
-        embedding_json = json.dumps(embedding, ensure_ascii=False) if embedding else ""
-        cur = conn.execute(
-            """INSERT INTO learnings (type, content, source, importance, created_at, embedding)
-               SELECT ?, ?, ?, ?, ?, ? WHERE NOT EXISTS
-               (SELECT 1 FROM learnings WHERE LOWER(TRIM(content))=LOWER(TRIM(?)))""",
-            ("lesson", normalized_content, f"agent_outcome:{agent}", 6, time.time(), embedding_json, normalized_content),
-        )
-        conn.commit()
-        conn.close()
-        return cur.rowcount > 0
-
 
     @staticmethod
     def _normalize_workflow_query(text: str) -> str:
@@ -2043,7 +2003,6 @@ class LearningEngine:
             "total_learnings": total_learnings,
             "learnings_by_type": by_type,
         }
-
 
 _learning_engine: Optional[LearningEngine] = None
 

@@ -109,4 +109,3 @@ def save_daily_digest(
             
     except Exception as e:
         log.error(f"Failed to save daily digest: {e}")
-

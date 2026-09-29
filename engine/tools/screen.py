@@ -278,4 +278,3 @@ async def describe_screen(llm_client=None) -> str:
 
     return f"Running apps: {', '.join(apps)}."
 
-

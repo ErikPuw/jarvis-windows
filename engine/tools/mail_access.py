@@ -197,7 +197,6 @@ class NewOutlookAutomation:
             if str(control.automation_id() or "") == _FILTER_AUTOMATION_ID
         ]
 
-
     def find_mail_window(self) -> Any:
         matches = []
         for window in self._desktop.windows(visible_only=True):
@@ -460,7 +459,6 @@ class NewOutlookAutomation:
                 return
             self._sleep(0.1)
         raise RuntimeError("Outlook all-mail filter was not verified")
-
 
     @staticmethod
     def read_unread_rows(window: Any, max_results: int) -> list[str]:

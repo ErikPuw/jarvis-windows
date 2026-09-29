@@ -1,19 +1,17 @@
 """
-MCP Server Configuration Manager
+MCP: cấu hình (config/mcp_config.json) và MCPHub — kết nối các MCP server, bật/tắt/thêm lúc chạy.
 
-Handles:
-1. Generate and manage mcp_config.json in config/ directory
-2. Register MCP servers, tools and resources
-3. NO communication with llm_server.py (isolated layer)
+Không giao tiếp với llm_server.py (tầng hạ tầng tách biệt).
 """
 
 import asyncio
 import json
 import logging
 import os
+import re
+import shutil
 from pathlib import Path
 from typing import Optional, Any
-from dataclasses import dataclass
 
 import httpx
 
@@ -30,95 +28,39 @@ CONFIG_DIR = PROJECT_ROOT / "config"
 MCP_CONFIG_FILE = CONFIG_DIR / "mcp_config.json"
 
 
-@dataclass
-class MCPServerConfig:
-    """MCP Server configuration"""
-    command: Optional[str] = None
-    args: Optional[list[str]] = None
-    env: Optional[dict[str, str]] = None
-    enabled: bool = True
-    type: str = "stdio"
-    url: Optional[str] = None
-    headers: Optional[dict[str, str]] = None
+def read_config() -> dict:
+    """Nội dung config/mcp_config.json. Thiếu file thì trả cấu hình rỗng.
+
+    Đây là nơi DUY NHẤT đọc file này: MCPHub, trang Settings và các API bật/tắt/thêm đều đi qua đây.
+    """
+    if not MCP_CONFIG_FILE.exists():
+        return {"mcpServers": {}}
+    data = json.loads(MCP_CONFIG_FILE.read_text(encoding="utf-8-sig"))
+    if not isinstance(data.get("mcpServers"), dict):
+        data["mcpServers"] = {}
+    return data
 
 
-@dataclass
-class MCPTool:
-    """MCP Tool definition"""
-    name: str
-    description: str
-    input_schema: dict
-    category: str = "general"
-    enabled: bool = True
+def write_config(data: dict) -> None:
+    """Ghi config/mcp_config.json qua file tạm rồi thay thế, không để lại file ghi dở khi lỗi giữa chừng."""
+    MCP_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = MCP_CONFIG_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.replace(tmp, MCP_CONFIG_FILE)
 
 
-@dataclass
-class MCPResource:
-    """MCP Resource definition"""
-    uri: str
-    name: str
-    description: str
-    mime_type: str = "text/plain"
-    enabled: bool = True
+def _runtime_entry(cfg: dict) -> dict:
+    """Mục cấu hình → trạng thái chạy của một server trong MCPHub."""
+    return {
+        "command": cfg.get("command"),
+        "args": cfg.get("args", []),
+        "env": {**os.environ, **(cfg.get("env") or {})},
+        "status": "disconnected",
+        "type": cfg.get("type", "stdio"),
+        "url": cfg.get("url"),
+        "headers": cfg.get("headers") or {},
+    }
 
-
-class MCPServer:
-    """Manages MCP configuration and servers"""
-
-    def __init__(self):
-        self.servers: dict[str, MCPServerConfig] = {}
-        self.tools: dict[str, MCPTool] = {}
-        self.resources: dict[str, MCPResource] = {}
-        self.config: dict[str, Any] = {
-            "mcpServers": {},
-        }
-        self._ensure_config_dir()
-
-    def _ensure_config_dir(self):
-        """Create config directory if it doesn't exist"""
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-
-
-    def list_tools(self, enabled_only: bool = True) -> list[MCPTool]:
-        """List all registered tools"""
-        tools = list(self.tools.values())
-        if enabled_only:
-            tools = [t for t in tools if t.enabled]
-        return tools
-
-
-    def load_config(self) -> bool:
-        """Load configuration from mcp_config.json"""
-        if not MCP_CONFIG_FILE.exists():
-            log.warning(f"MCP config file not found: {MCP_CONFIG_FILE}")
-            return False
-
-        try:
-            data = json.loads(MCP_CONFIG_FILE.read_text())
-            self.config = data
-
-            # Reconstruct servers from config
-            for server_name, server_data in data.get("mcpServers", {}).items():
-                server = MCPServerConfig(**server_data)
-                self.servers[server_name] = server
-
-            log.info(f"MCP config loaded from {MCP_CONFIG_FILE}")
-            return True
-        except Exception as e:
-            log.error(f"Failed to load MCP config: {e}")
-            return False
-
-
-    def get_stats(self) -> dict:
-        """Get statistics about registered servers, tools and resources"""
-        return {
-            "total_servers": len(self.servers),
-            "enabled_servers": sum(1 for s in self.servers.values() if s.enabled),
-            "total_tools": len(self.tools),
-            "enabled_tools": sum(1 for t in self.tools.values() if t.enabled),
-            "total_resources": len(self.resources),
-            "enabled_resources": sum(1 for r in self.resources.values() if r.enabled),
-        }
 
 # ─── MCPHub — Quản lý kết nối MCP servers ───
 class MCPHub:
@@ -129,27 +71,15 @@ class MCPHub:
         self.sessions: dict[str, ClientSession] = {}
         self._stop_events: dict[str, asyncio.Event] = {}
         self._lifecycle_tasks: dict[str, asyncio.Task] = {}
+        self._background: set[asyncio.Task] = set()
         self._load_config()
 
     def _load_config(self):
-        """Load MCP configuration from config/mcp_config.json."""
-        if not MCP_CONFIG_FILE.exists():
-            log.info("No MCP config found at %s", MCP_CONFIG_FILE)
-            return
+        """Nạp các server đang bật từ config/mcp_config.json."""
         try:
-            with open(MCP_CONFIG_FILE) as f:
-                data = json.load(f)
-            for name, cfg in data.get("mcpServers", {}).items():
+            for name, cfg in read_config()["mcpServers"].items():
                 if cfg.get("enabled", True):
-                    self.servers[name] = {
-                        "command": cfg.get("command"),
-                        "args": cfg.get("args", []),
-                        "env": {**os.environ, **cfg.get("env", {})},
-                        "status": "disconnected",
-                        "type": cfg.get("type", "stdio"),
-                        "url": cfg.get("url"),
-                        "headers": cfg.get("headers") or {},
-                    }
+                    self.servers[name] = _runtime_entry(cfg)
             log.info("Loaded %d MCP servers from config", len(self.servers))
         except Exception as e:
             log.error("Failed to load MCP config: %s", e)
@@ -165,6 +95,33 @@ class MCPHub:
             "servers": {k: v["status"] for k, v in self.servers.items()},
         }
 
+    def add_server(self, name: str, cfg: dict) -> None:
+        """Đăng ký một server (mục cấu hình dạng config/mcp_config.json) vào hub, chưa kết nối."""
+        self.servers[name] = _runtime_entry(cfg)
+        log.info("Registered MCP server '%s'", name)
+
+    def connect_in_background(self, name: str) -> None:
+        """Kết nối không chờ (connect_server có thể chờ tới 60s); trạng thái theo dõi qua get_stats()."""
+        if name not in self.servers:
+            return
+        self.servers[name]["status"] = "connecting"
+        task = asyncio.get_running_loop().create_task(self.connect_server(name))
+        self._background.add(task)
+        task.add_done_callback(self._background.discard)
+
+    async def stop_server(self, name: str) -> None:
+        """Ngắt kết nối và bỏ server khỏi hub. Đợi vòng đời kết thúc TRƯỚC khi xoá mục, vì vòng đó còn ghi status."""
+        event = self._stop_events.pop(name, None)
+        if event is not None:
+            event.set()
+        task = self._lifecycle_tasks.pop(name, None)
+        if task is not None:
+            _, pending = await asyncio.wait({task}, timeout=10)
+            if pending:
+                task.cancel()
+                await asyncio.wait({task}, timeout=5)
+        self.sessions.pop(name, None)
+        self.servers.pop(name, None)
 
     async def connect_server(self, name: str) -> bool:
         """Connect to a registered MCP server."""
@@ -414,6 +371,27 @@ class MCPHub:
                 log.error("Failed to list tools from '%s': %s", name, e)
         return all_tools
 
+    async def get_all_tools_openai(self) -> list[dict]:
+        """List all tools from connected servers as OpenAI function calling schemas.
+        
+        Used for diagnostics/admin. Not passed to LLM (MCP is infrastructure tier).
+        """
+        openai_tools: list[dict] = []
+        for server_name, session in self.sessions.items():
+            try:
+                tools_result = await session.list_tools()
+                for tool in tools_result.tools:
+                    openai_tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "parameters": tool.inputSchema,
+                        }
+                    })
+            except Exception as e:
+                log.warning("Failed to list tools from '%s': %s", server_name, e)
+        return openai_tools
 
     async def call_tool(
         self, server_name: str, tool_name: str, arguments: dict[str, Any] = None, timeout: float = 60.0
@@ -447,23 +425,7 @@ class MCPHub:
 
 # ─── Globals ───
 
-_mcp_server: Optional[MCPServer] = None
 _hub: Optional[MCPHub] = None
-
-
-def get_mcp_server() -> MCPServer:
-    """Get or create the global MCP server instance"""
-    global _mcp_server
-    if _mcp_server is None:
-        _mcp_server = MCPServer()
-    return _mcp_server
-
-
-def initialize_mcp() -> MCPServer:
-    """Initialize MCP server and load existing config"""
-    server = get_mcp_server()
-    server.load_config()
-    return server
 
 
 def get_mcp_hub() -> MCPHub:
@@ -474,3 +436,84 @@ def get_mcp_hub() -> MCPHub:
     return _hub
 
 
+# ─── Bật / tắt / thêm server lúc chạy (cho API của Settings) ───
+
+_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+_ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_SERVER_TYPES = ("stdio", "sse", "http")
+
+
+def _str_map(value: Any, label: str) -> dict[str, str]:
+    if not isinstance(value, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in value.items()):
+        raise ValueError(f"{label} phải là các cặp chuỗi.")
+    return dict(value)
+
+
+def validate_new_server(name: str, body: dict) -> dict:
+    """Kiểm tra dữ liệu thêm server và trả mục cấu hình sạch. ValueError nếu không hợp lệ.
+
+    Server stdio nghĩa là chạy một lệnh trên máy này, nên lệnh phải tồn tại thật và không đi qua shell.
+    """
+    if not isinstance(name, str) or not _NAME_RE.match(name):
+        raise ValueError("Tên máy chủ chỉ gồm chữ, số, '.', '_', '-' (tối đa 64 ký tự).")
+    kind = body.get("type") or "stdio"
+    if kind not in _SERVER_TYPES:
+        raise ValueError("Loại máy chủ phải là stdio, sse hoặc http.")
+    entry: dict[str, Any] = {"type": kind, "enabled": bool(body.get("enabled", True))}
+    if kind == "stdio":
+        command = str(body.get("command") or "").strip()
+        if not command or any(c in command for c in "\r\n\0"):
+            raise ValueError("Thiếu lệnh chạy.")
+        if not (shutil.which(command) or Path(command).is_file()):
+            raise ValueError(f"Không tìm thấy lệnh '{command}' trong PATH.")
+        args = body.get("args") or []
+        if not isinstance(args, list) or not all(isinstance(a, str) and "\0" not in a and len(a) <= 2000 for a in args):
+            raise ValueError("args phải là danh sách chuỗi.")
+        entry["command"], entry["args"] = command, args
+        if body.get("env"):
+            env = _str_map(body["env"], "env")
+            bad = next((k for k in env if not _ENV_KEY_RE.match(k)), None)
+            if bad is not None:
+                raise ValueError(f"Tên biến env không hợp lệ: '{bad}'.")
+            entry["env"] = env
+    else:
+        url = str(body.get("url") or "").strip()
+        if not re.match(r"^https?://\S+$", url):
+            raise ValueError("URL phải bắt đầu bằng http:// hoặc https://.")
+        entry["url"] = url
+        if body.get("headers"):
+            entry["headers"] = _str_map(body["headers"], "headers")
+    return entry
+
+
+async def set_server_enabled(name: str, enabled: bool) -> str:
+    """Ghi cờ enabled vào config rồi áp dụng ngay vào hub, không cần khởi động lại. KeyError nếu không có server."""
+    # Đọc-sửa-ghi liền nhau, không có await xen giữa nên hai lời gọi đồng thời không ghi đè nhau.
+    data = read_config()
+    entry = data["mcpServers"].get(name)
+    if entry is None:
+        raise KeyError(name)
+    entry["enabled"] = bool(enabled)
+    write_config(data)
+    hub = get_mcp_hub()
+    if enabled:
+        if name not in hub.servers:
+            hub.add_server(name, entry)
+        hub.connect_in_background(name)
+        return hub.servers[name]["status"]
+    await hub.stop_server(name)
+    return "disabled"
+
+
+async def add_server_config(name: str, body: dict) -> None:
+    """Thêm server mới vào config và (nếu bật) kết nối ngay. ValueError nếu dữ liệu sai, FileExistsError nếu trùng tên."""
+    entry = validate_new_server(name, body)
+    data = read_config()
+    if name in data["mcpServers"]:
+        raise FileExistsError(name)
+    data["mcpServers"][name] = entry
+    write_config(data)
+    if entry["enabled"]:
+        hub = get_mcp_hub()
+        hub.add_server(name, entry)
+        hub.connect_in_background(name)

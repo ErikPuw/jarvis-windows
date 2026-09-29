@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from engine.security.policy import NetworkPolicy, is_origin_allowed, parse_cors_origins
+from engine.security.policy import DEFAULT_CORS_ORIGINS, NetworkPolicy, is_origin_allowed, parse_cors_origins
 
 _UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -40,11 +40,14 @@ def is_ip_allowed(client_host: str | None) -> bool:
 
 
 def is_request_origin_allowed(headers) -> bool:
-    """Origin của trình duyệt phải là frontend JARVIS (cùng host hoặc nằm trong JARVIS_CORS_ORIGINS)."""
+    """Origin của trình duyệt phải là frontend JARVIS (cùng host, localhost mặc định, hoặc JARVIS_CORS_ORIGINS).
+
+    Localhost mặc định luôn được giữ: thêm IP Tailscale vào JARVIS_CORS_ORIGINS không được khoá UI trên chính PC.
+    """
     return is_origin_allowed(
         headers.get("origin"),
         headers.get("host"),
-        parse_cors_origins(os.getenv("JARVIS_CORS_ORIGINS", "")),
+        DEFAULT_CORS_ORIGINS + parse_cors_origins(os.getenv("JARVIS_CORS_ORIGINS", "")),
     )
 
 

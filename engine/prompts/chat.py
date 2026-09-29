@@ -16,6 +16,7 @@ from pathlib import Path
 
 from engine import prompts
 from engine.prompts import catalog, persona, results
+from engine.prompts.honorific import trailing_honorific_re
 
 log = logging.getLogger("jarvis.prompts.chat")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -179,7 +180,6 @@ def build_chat_history(
     return _history_messages(raw_history, user_text)
 
 
-_TRAILING_HONORIFIC = re.compile(r"\s*\n\s*thưa ngài[.!]?\s*$", re.IGNORECASE)
 
 
 def _history_messages(items: list, user_text: str) -> list[dict]:
@@ -192,7 +192,7 @@ def _history_messages(items: list, user_text: str) -> list[dict]:
             continue
         if role == "assistant":
             # Dòng riêng "Thưa ngài." ở cuối câu cũ khiến model chép lại thành 2 lần (log 2026-09-25)
-            content = _TRAILING_HONORIFIC.sub("", content)
+            content = trailing_honorific_re().sub("", content)
             # Không dựng lại thẻ <ask_user>/<action_run> (2026-09-27): làm "ví dụ mẫu" thì model đề nghị ở mọi
             # lượt sau (jarvis.log 20:57–21:00). Thẻ vẫn ở cột DB; câu "ừ" chạy bằng get_pending_offer.
         history_msgs.append({"role": role, "content": content})
