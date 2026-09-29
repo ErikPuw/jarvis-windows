@@ -28,6 +28,7 @@ data/.jarvis_output.txt
 
 # Certificates
 *.pem
+*.bak
 #Logs
 logs/
 bin/

@@ -151,11 +151,4 @@ class PluginLoader:
         for name in list(self._plugins.keys()):
             self.unload(name)
 
-    def get_plugin(self, name: str) -> Optional[PluginInfo]:
-        return self._plugins.get(name)
 
-    def list_active(self) -> list[str]:
-        return [name for name, info in self._plugins.items() if info.active]
-
-    def list_all(self) -> list[PluginInfo]:
-        return list(self._plugins.values())

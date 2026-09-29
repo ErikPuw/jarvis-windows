@@ -1,11 +1,9 @@
 import hashlib
 from dataclasses import asdict, replace
-from io import BytesIO
 import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.request import Request, urlopen
 from urllib.parse import urljoin
 
 from scrapling.fetchers import Fetcher
@@ -236,37 +234,6 @@ def fetch_current_jackpots() -> dict[str, list[dict]]:
     if response.status and response.status >= 400:
         raise OSError(f"Vietlott HTTP {response.status}")
     return parse_current_jackpots(_body_text(response))
-
-
-def _extract_pdf_text(url: str) -> str:
-    try:
-        from pypdf import PdfReader
-    except ImportError as exc:
-        raise OSError("pypdf is required to read official Vietlott result PDFs") from exc
-    request = Request(url, headers={"User-Agent": "Jarvis-Vietlott-Analyzer/1.0"})
-    with urlopen(request, timeout=20) as response:
-        reader = PdfReader(BytesIO(response.read()))
-    return "\n".join(page.extract_text() or "" for page in reader.pages)
-
-
-def parse_catalog_pdfs(game: str, page: tuple[str, str], limit: int = 30) -> list[Draw]:
-    source_url, html = page
-    pdf_links = re.findall(r'href=["\']([^"\']+\.pdf)["\']', html, flags=re.IGNORECASE)
-    draws = []
-    seen = set()
-    for index, href in enumerate(pdf_links[-limit:], start=1):
-        pdf_url = urljoin(source_url, href)
-        try:
-            pdf_text = _extract_pdf_text(pdf_url)
-            parsed = parse_official_draws(game, (pdf_url, pdf_text))
-        except OSError:
-            continue
-        for draw in parsed:
-            if draw.numbers in seen:
-                continue
-            seen.add(draw.numbers)
-            draws.append(Draw(game, f"pdf-{index}", draw.draw_date, draw.numbers, pdf_url, draw.content_hash))
-    return draws
 
 
 def _draw_from_dict(item: dict) -> Draw:

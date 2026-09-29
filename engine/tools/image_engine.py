@@ -10,7 +10,6 @@ _BIN_PATH = r"C:\Program Files\Upscayl\resources\bin\upscayl-bin.exe"
 _MODELS_PATH = r"C:\Program Files\Upscayl\resources\models"
 
 SUPPORTED_INPUT = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-SUPPORTED_OUTPUT = {".png", ".jpg", ".jpeg", ".webp"}
 AVAILABLE_MODELS = [
     "upscayl-standard-4x",
     "upscayl-lite-4x",

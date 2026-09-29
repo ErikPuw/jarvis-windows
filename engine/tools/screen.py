@@ -279,12 +279,3 @@ async def describe_screen(llm_client=None) -> str:
     return f"Running apps: {', '.join(apps)}."
 
 
-def format_windows_for_context(windows: list[dict]) -> str:
-    """Format window list as context string for the LLM."""
-    if not windows:
-        return ""
-    lines = ["Currently open on your desktop:"]
-    for w in windows:
-        marker = " (active)" if w.get("frontmost") else ""
-        lines.append(f"  - {w['app']}: {w['title']}{marker}")
-    return "\n".join(lines)

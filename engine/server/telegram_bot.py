@@ -31,7 +31,6 @@ MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 UPLOAD_DIR = Path(__file__).resolve().parents[2] / "data" / "uploads"
 RESTART_NOTICE_PATH = Path(__file__).resolve().parents[2] / "data" / "telegram_restart_notice.json"
 RESTART_NOTICE_MAX_AGE_SECONDS = 10 * 60
-PROMPT_TOOLS_PATH = Path(__file__).resolve().parents[2] / "prompt" / "tools.md"
 ALLOWED_DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".txt", ".csv"}
 ALLOWED_DOCUMENT_MIME_TYPES = {
     ".pdf": {"application/pdf"},

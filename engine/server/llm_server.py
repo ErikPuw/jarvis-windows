@@ -187,11 +187,6 @@ def get_embed_client():
     return _embed_client
 
 
-def reset_llm_client():
-    global _llm_client
-    _llm_client = None
-
-
 async def close_llm_client():
     """Close and clear the shared LLM client during application shutdown."""
     global _llm_client

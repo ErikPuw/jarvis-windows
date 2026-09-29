@@ -28,18 +28,9 @@ async def get_tts_client() -> httpx.AsyncClient:
                 _tts_client = httpx.AsyncClient(timeout=httpx.Timeout(60.0, read=90.0))
     return _tts_client
 
-async def close_tts_client():
-    global _tts_client
-    if _tts_client is not None:
-        await _tts_client.aclose()
-        _tts_client = None
-        log.info("TTS client closed")
 
 _on_success_callback = None
 
-def set_on_success_callback(cb):
-    global _on_success_callback
-    _on_success_callback = cb
 
 def _env_enabled(name: str, default: bool = False) -> bool:
     value = os.getenv(name)

@@ -6,7 +6,6 @@ import logging
 import re
 import sys
 import unicodedata
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Any
 
@@ -466,8 +465,6 @@ class LearningEngine:
             log.info("🧹 Consolidated learnings: removed %d duplicate(s)", len(doomed))
         return len(doomed)
 
-    def _store_feedback_lesson(self, key: str, content: str) -> bool:
-        return self._store_learning(content, "feedback_lesson", key)
 
     # ------------------------------------------------------------------
     # Semantic duplicate detection (dùng chung embedder với SemanticMemoryEngine)
@@ -1026,25 +1023,6 @@ class LearningEngine:
                 user_msg = None
         return pairs
 
-    def get_interactions_by_date(self, date_str: str) -> list[dict]:
-        try:
-            dt = datetime.strptime(date_str, "%Y-%m-%d")
-            since = dt.timestamp()
-            until = (dt + timedelta(days=1)).timestamp()
-        except ValueError:
-            log.warning(f"Invalid date format: {date_str}, use YYYY-MM-DD")
-            return []
-        return self.get_interactions_in_range(since, until)
-
-    @staticmethod
-    def _extract_message(line: str) -> str:
-        m = re.search(r'\]\s*(.+)', line)
-        if m:
-            return m.group(1).strip()
-        m = re.search(r'-\s*(ERROR|WARNING)\s*[-:]\s*(.+)', line, re.IGNORECASE)
-        if m:
-            return m.group(2).strip()
-        return ""
 
     # ------------------------------------------------------------------
     # Truy xuất learnings
@@ -1648,16 +1626,6 @@ class LearningEngine:
             corrections.append(item)
         return corrections
 
-    def mark_outcome_misrouted(self, outcome_id: int) -> bool:
-        conn = self._get_learning_db()
-        cur = conn.execute(
-            "UPDATE agent_outcomes SET status='misrouted' "
-            "WHERE id=? AND status='success'",
-            (int(outcome_id),),
-        )
-        conn.commit()
-        conn.close()
-        return cur.rowcount == 1
 
     # Gate chỉ hiểu 3 bucket này. Từng có correction ghi expected_route là
     # câu tiếng Việt ("chỉ trả lời hội thoại") khiến gate in nguyên văn vào
@@ -1839,11 +1807,6 @@ class LearningEngine:
         conn.close()
         return cur.rowcount > 0
 
-    @staticmethod
-    def _normalize_vi(text: str) -> str:
-        """Strip Vietnamese diacritics so 'mở' and 'mo' match the same workflow."""
-        nfkd = unicodedata.normalize('NFKD', text)
-        return ''.join(c for c in nfkd if not unicodedata.combining(c))
 
     @staticmethod
     def _normalize_workflow_query(text: str) -> str:
@@ -2081,38 +2044,6 @@ class LearningEngine:
             "learnings_by_type": by_type,
         }
 
-    def delete_learning(self, learning_id: int) -> bool:
-        """Xóa một bài học kinh nghiệm trong jarvis.db."""
-        try:
-            conn = self._get_learning_db()
-            affected = conn.execute("DELETE FROM learnings WHERE id=?", (learning_id,)).rowcount
-            conn.commit()
-            conn.close()
-            if affected:
-                self._sync_learning_wiki()
-            log.info(f"Learning deleted: id={learning_id}")
-            return affected > 0
-        except Exception as e:
-            log.error(f"Failed to delete learning: {e}")
-            return False
-
-    def update_learning(self, learning_id: int, content: str, type_name: str = "lesson", importance: int = 5) -> bool:
-        """Cập nhật nội dung một bài học kinh nghiệm trong jarvis.db."""
-        try:
-            conn = self._get_learning_db()
-            affected = conn.execute(
-                "UPDATE learnings SET content=?, type=?, importance=? WHERE id=?",
-                (content.strip(), type_name.strip(), importance, learning_id)
-            ).rowcount
-            conn.commit()
-            conn.close()
-            if affected:
-                self._sync_learning_wiki()
-            log.info(f"Learning updated: id={learning_id}")
-            return affected > 0
-        except Exception as e:
-            log.error(f"Failed to update learning: {e}")
-            return False
 
 _learning_engine: Optional[LearningEngine] = None
 

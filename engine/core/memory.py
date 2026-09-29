@@ -181,62 +181,6 @@ def save_memory(content: str, mem_type: str = "fact", source: str = "", importan
     return mem_id
 
 
-def upsert_distilled_memory(
-    content: str, mem_type: str, source: str, importance: int, semantic_key: str,
-) -> dict:
-    """Persist a Learning-approved item and replace its prior value by stable semantic key."""
-    if mem_type not in {"fact", "preference"}:
-        raise ValueError("Unsupported distilled memory type")
-    content = strip_images(strip_emojis(content.strip()))
-    semantic_key = re.sub(r"[^a-z0-9_-]+", "_", semantic_key.lower()).strip("_")[:80]
-    if not content or not semantic_key:
-        raise ValueError("Distilled memory requires content and semantic key")
-
-    # The learning task may be the first writer after a fresh database reset.
-    # Make its storage path independent from startup ordering.
-    init_db()
-    conn = _get_db()
-    conn.execute(
-        """CREATE TABLE IF NOT EXISTS memory_registry (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, semantic_key TEXT NOT NULL,
-            mem_type TEXT NOT NULL, memory_id INTEGER NOT NULL, wiki_scope TEXT DEFAULT '',
-            updated_at REAL NOT NULL, UNIQUE(mem_type, semantic_key))"""
-    )
-    row = conn.execute(
-        """SELECT r.memory_id, m.content FROM memory_registry r
-           JOIN memories m ON m.id=r.memory_id WHERE r.mem_type=? AND r.semantic_key=?""",
-        (mem_type, semantic_key),
-    ).fetchone()
-    conn.close()
-    if row:
-        mem_id = row["memory_id"]
-        if " ".join(row["content"].split()).lower() == " ".join(content.split()).lower():
-            log.info("🧠 Memory [%s] duplicate: key=%s id=%s", mem_type, semantic_key, mem_id)
-            return {"status": "duplicate", "memory_id": mem_id}
-        if not update_memory(
-            mem_id, content, importance, mem_type, source=source
-        ):
-            raise RuntimeError(f"Unable to update memory {mem_id}")
-        conn = _get_db()
-        conn.execute("UPDATE memory_registry SET updated_at=? WHERE mem_type=? AND semantic_key=?",
-                     (time.time(), mem_type, semantic_key))
-        conn.commit()
-        conn.close()
-        log.info("🧠 Memory [%s] updated: key=%s id=%s", mem_type, semantic_key, mem_id)
-        return {"status": "updated", "memory_id": mem_id}
-
-    mem_id = save_memory(content, mem_type, source, importance)
-    conn = _get_db()
-    conn.execute(
-        "INSERT OR REPLACE INTO memory_registry (semantic_key, mem_type, memory_id, updated_at) VALUES (?, ?, ?, ?)",
-        (semantic_key, mem_type, mem_id, time.time()),
-    )
-    conn.commit()
-    conn.close()
-    log.info("🧠 Memory [%s] created: key=%s id=%s", mem_type, semantic_key, mem_id)
-    return {"status": "created", "memory_id": mem_id}
-
-
 def get_important_memories(limit: int = 10) -> list[dict]:
     conn = _get_db()
     results = conn.execute(
@@ -769,7 +713,6 @@ def delete_pin_from_db(lat: float, lng: float) -> bool:
     except Exception as e:
         log.error(f"Failed to delete pin from DB: {e}")
         return False
-
 
 
 # ---------------------------------------------------------------------------

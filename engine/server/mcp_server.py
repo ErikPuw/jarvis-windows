@@ -13,7 +13,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Optional, Any
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 
 import httpx
 
@@ -78,84 +78,6 @@ class MCPServer:
         """Create config directory if it doesn't exist"""
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-    def register_server(self, server_name: str, command: Optional[str] = None, args: Optional[list[str]] = None, enabled: bool = True, type: str = "stdio", url: Optional[str] = None) -> bool:
-        """Register a new MCP server"""
-        if server_name in self.servers:
-            log.warning(f"Server '{server_name}' already registered, skipping")
-            return False
-
-        server = MCPServerConfig(command=command, args=args, enabled=enabled, type=type, url=url)
-        self.servers[server_name] = server
-        self.config["mcpServers"][server_name] = asdict(server)
-        log.info(f"Registered MCP server: {server_name}")
-        return True
-
-    def register_tool(self, tool: MCPTool) -> bool:
-        """Register a new MCP tool"""
-        if tool.name in self.tools:
-            log.warning(f"Tool '{tool.name}' already registered, skipping")
-            return False
-
-        self.tools[tool.name] = tool
-        log.info(f"Registered MCP tool: {tool.name}")
-        return True
-
-    def register_resource(self, resource: MCPResource) -> bool:
-        """Register a new MCP resource"""
-        if resource.uri in self.resources:
-            log.warning(f"Resource '{resource.uri}' already registered, skipping")
-            return False
-
-        self.resources[resource.uri] = resource
-        log.info(f"Registered MCP resource: {resource.uri}")
-        return True
-
-    def unregister_server(self, server_name: str) -> bool:
-        """Unregister a server"""
-        if server_name not in self.servers:
-            return False
-
-        del self.servers[server_name]
-        del self.config["mcpServers"][server_name]
-        log.info(f"Unregistered MCP server: {server_name}")
-        return True
-
-    def unregister_tool(self, tool_name: str) -> bool:
-        """Unregister a tool"""
-        if tool_name not in self.tools:
-            return False
-
-        del self.tools[tool_name]
-        log.info(f"Unregistered MCP tool: {tool_name}")
-        return True
-
-    def unregister_resource(self, resource_uri: str) -> bool:
-        """Unregister a resource"""
-        if resource_uri not in self.resources:
-            return False
-
-        del self.resources[resource_uri]
-        log.info(f"Unregistered MCP resource: {resource_uri}")
-        return True
-
-    def get_server(self, server_name: str) -> Optional[MCPServerConfig]:
-        """Get a server by name"""
-        return self.servers.get(server_name)
-
-    def get_tool(self, tool_name: str) -> Optional[MCPTool]:
-        """Get a tool by name"""
-        return self.tools.get(tool_name)
-
-    def get_resource(self, resource_uri: str) -> Optional[MCPResource]:
-        """Get a resource by URI"""
-        return self.resources.get(resource_uri)
-
-    def list_servers(self, enabled_only: bool = True) -> list[MCPServerConfig]:
-        """List all registered servers"""
-        servers = list(self.servers.values())
-        if enabled_only:
-            servers = [s for s in servers if s.enabled]
-        return servers
 
     def list_tools(self, enabled_only: bool = True) -> list[MCPTool]:
         """List all registered tools"""
@@ -164,72 +86,6 @@ class MCPServer:
             tools = [t for t in tools if t.enabled]
         return tools
 
-    def list_resources(self, enabled_only: bool = True) -> list[MCPResource]:
-        """List all registered resources"""
-        resources = list(self.resources.values())
-        if enabled_only:
-            resources = [r for r in resources if r.enabled]
-        return resources
-
-    def enable_server(self, server_name: str) -> bool:
-        """Enable a server"""
-        if server_name not in self.servers:
-            return False
-        self.servers[server_name].enabled = True
-        self.config["mcpServers"][server_name]["enabled"] = True
-        log.info(f"Enabled server: {server_name}")
-        return True
-
-    def disable_server(self, server_name: str) -> bool:
-        """Disable a server"""
-        if server_name not in self.servers:
-            return False
-        self.servers[server_name].enabled = False
-        self.config["mcpServers"][server_name]["enabled"] = False
-        log.info(f"Disabled server: {server_name}")
-        return True
-
-    def enable_tool(self, tool_name: str) -> bool:
-        """Enable a tool"""
-        if tool_name not in self.tools:
-            return False
-        self.tools[tool_name].enabled = True
-        log.info(f"Enabled tool: {tool_name}")
-        return True
-
-    def disable_tool(self, tool_name: str) -> bool:
-        """Disable a tool"""
-        if tool_name not in self.tools:
-            return False
-        self.tools[tool_name].enabled = False
-        log.info(f"Disabled tool: {tool_name}")
-        return True
-
-    def enable_resource(self, resource_uri: str) -> bool:
-        """Enable a resource"""
-        if resource_uri not in self.resources:
-            return False
-        self.resources[resource_uri].enabled = True
-        log.info(f"Enabled resource: {resource_uri}")
-        return True
-
-    def disable_resource(self, resource_uri: str) -> bool:
-        """Disable a resource"""
-        if resource_uri not in self.resources:
-            return False
-        self.resources[resource_uri].enabled = False
-        log.info(f"Disabled resource: {resource_uri}")
-        return True
-
-    def save_config(self) -> bool:
-        """Save configuration to mcp_config.json"""
-        try:
-            MCP_CONFIG_FILE.write_text(json.dumps(self.config, indent=2))
-            log.info(f"MCP config saved to {MCP_CONFIG_FILE}")
-            return True
-        except Exception as e:
-            log.error(f"Failed to save MCP config: {e}")
-            return False
 
     def load_config(self) -> bool:
         """Load configuration from mcp_config.json"""
@@ -252,9 +108,6 @@ class MCPServer:
             log.error(f"Failed to load MCP config: {e}")
             return False
 
-    def get_config_dict(self) -> dict:
-        """Get the current configuration as a dictionary"""
-        return self.config.copy()
 
     def get_stats(self) -> dict:
         """Get statistics about registered servers, tools and resources"""
@@ -312,18 +165,6 @@ class MCPHub:
             "servers": {k: v["status"] for k, v in self.servers.items()},
         }
 
-    async def add_server(self, name: str, command: str = None, args: list[str] = None, env: dict[str, str] = None, type: str = "stdio", url: str = None, headers: dict[str, str] = None):
-        """Register an MCP server manually."""
-        self.servers[name] = {
-            "command": command,
-            "args": args or [],
-            "env": env or os.environ.copy(),
-            "status": "disconnected",
-            "type": type,
-            "url": url,
-            "headers": headers or {},
-        }
-        log.info("Registered MCP server '%s'", name)
 
     async def connect_server(self, name: str) -> bool:
         """Connect to a registered MCP server."""
@@ -573,27 +414,6 @@ class MCPHub:
                 log.error("Failed to list tools from '%s': %s", name, e)
         return all_tools
 
-    async def get_all_tools_openai(self) -> list[dict]:
-        """List all tools from connected servers as OpenAI function calling schemas.
-        
-        Used for diagnostics/admin. Not passed to LLM (MCP is infrastructure tier).
-        """
-        openai_tools: list[dict] = []
-        for server_name, session in self.sessions.items():
-            try:
-                tools_result = await session.list_tools()
-                for tool in tools_result.tools:
-                    openai_tools.append({
-                        "type": "function",
-                        "function": {
-                            "name": tool.name,
-                            "description": tool.description,
-                            "parameters": tool.inputSchema,
-                        }
-                    })
-            except Exception as e:
-                log.warning("Failed to list tools from '%s': %s", server_name, e)
-        return openai_tools
 
     async def call_tool(
         self, server_name: str, tool_name: str, arguments: dict[str, Any] = None, timeout: float = 60.0
@@ -654,8 +474,3 @@ def get_mcp_hub() -> MCPHub:
     return _hub
 
 
-def initialize_mcp_hub() -> MCPHub:
-    """Initialize MCPHub and load config."""
-    hub = get_mcp_hub()
-    log.info("MCPHub initialized with %d servers", hub.get_stats()["total_servers"])
-    return hub

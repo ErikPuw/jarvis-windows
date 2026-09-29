@@ -119,35 +119,6 @@ def _format_conversations(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _query_wiki_for_date(date_str: str) -> str:
-    """Đọc file Obsidian daily wiki cho một ngày cụ thể (YYYY-MM-DD).
-
-    Nếu Dream đã lưu trữ bản gốc (di chuyển vào .trash/dream/ khi dọn dẹp định
-    kỳ), fallback đọc bản tóm tắt trong file tổng-kết-tháng thay vì trả rỗng."""
-    try:
-        from engine.core.memory_tree import WIKI_DIR, daily_note_path
-        daily_path = daily_note_path(date_str)
-        candidates = [daily_path, WIKI_DIR / "daily" / f"{date_str}.md"]
-        for wiki_file in candidates:
-            if wiki_file.exists():
-                content = wiki_file.read_text(encoding="utf-8").strip()
-                log.info(f"Wiki daily found: {date_str} ({len(content)} chars)")
-                return content
-
-        month_file = daily_path.parent / f"Tháng {daily_path.parent.name}.md"
-        if month_file.exists():
-            from engine.core.dream import extract_day_summary_from_month
-            summary = extract_day_summary_from_month(
-                month_file.read_text(encoding="utf-8"), date_str
-            )
-            if summary:
-                log.info(f"Wiki daily archived by Dream, using month summary: {date_str}")
-                return f"[Bản gốc ngày này đã được Dream tóm tắt/lưu trữ]\n{summary}"
-    except Exception as e:
-        log.warning(f"Wiki read failed for {date_str}: {e}")
-    return ""
-
-
 def _query_wiki_range(since: float, until: float) -> str:
     """Đọc tất cả file Obsidian daily trong khoảng thời gian.
 
