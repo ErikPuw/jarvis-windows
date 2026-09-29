@@ -18,12 +18,11 @@ Danh sách xử lý theo spec:
 
 import argparse
 import datetime
-import os
 import re
 import shutil
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -351,9 +350,9 @@ def main() -> None:
     args = parser.parse_args()
 
     mode = "THỰC THI (--apply)" if args.apply else "DRY-RUN (CHỈ XEM)"
-    print(f"============================================================")
+    print("============================================================")
     print(f"JARVIS CLEANUP SCRIPT 2026-09 — CHẾ ĐỘ: {mode}")
-    print(f"============================================================")
+    print("============================================================")
 
     report = run_cleanup(apply=args.apply)
 
@@ -378,13 +377,13 @@ def main() -> None:
         print(f"   - {bf}")
 
     if args.apply:
-        print(f"\n✅ ĐÃ HOÀN TẤT DỌN DẸP AN TOÀN.")
+        print("\n✅ ĐÃ HOÀN TẤT DỌN DẸP AN TOÀN.")
         print(f"   Bản sao lưu tại: {report['backup_path']}")
     else:
-        print(f"\n⚠️  CHẾ ĐỘ XEM TRƯỚC: Không có dữ liệu nào bị thay đổi.")
-        print(f"   Để thực sự áp dụng dọn dẹp, hãy chạy lại với cờ --apply:")
-        print(f"   rtk python scripts/cleanup_learning_2026_09.py --apply")
-    print(f"============================================================")
+        print("\n⚠️  CHẾ ĐỘ XEM TRƯỚC: Không có dữ liệu nào bị thay đổi.")
+        print("   Để thực sự áp dụng dọn dẹp, hãy chạy lại với cờ --apply:")
+        print("   rtk python scripts/cleanup_learning_2026_09.py --apply")
+    print("============================================================")
 
 
 if __name__ == "__main__":

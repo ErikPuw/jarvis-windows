@@ -9,3 +9,5 @@ select = ["F", "E9", "B006", "B023", "PLE"]
 
 [lint.per-file-ignores]
 "__init__.py" = ["F401"]
+# Test hay import module chỉ để monkeypatch / kiểm tra thứ tự import; probe live là script đo tay.
+"tests/**" = ["F401", "F541", "F841", "B023"]
