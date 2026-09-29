@@ -416,7 +416,7 @@ rtk python -m pytest tests -q --ignore=tests/live
 
 - **Golden** (`tests/test_prompts_wired.py`): the gate, classifier, offer_context, dream, self_healing and workflow prompts must be byte-identical to `tests/golden/`. The test also checks that no prompt text remains in code and that modules import cleanly in any order.
 - **Never touches real data**: learning tests and cleanup-script tests run against a temporary DB and wiki.
-- **CI** (`.github/workflows/ci.yml`, runs on every push to `main` and every PR): `ruff check .` (rules in `ruff.toml`), compile all Python, `python .github/scripts/check_imports.py` (every `from engine... import X` must point to a real name), `pytest` (installs `requirements.txt` minus Windows-only packages, plus `bsdtar`; skips `tests/live/` and `tests/test_live_*.py`, which need a real llama-server), and `npm run build` for the frontend. Run these locally before pushing to keep CI green.
+- **CI** (`.github/workflows/ci.yml`, runs on every push to `main` and every PR): `ruff check .` (rules in `ruff.toml`), compile all Python, `python .github/scripts/check_imports.py` (every `from engine... import X` must point to a real name), `pytest` (installs the lightweight `requirements-ci.txt` plus `bsdtar`; skips `tests/live/` and `tests/test_live_*.py`, which need a real llama-server), and `npm run build` for the frontend. Run these locally before pushing to keep CI green.
 - **Live probes** (`tests/live/probes/`, only call llama-server):
 
 | Probe | Measures |
