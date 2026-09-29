@@ -1,5 +1,7 @@
 # JARVIS
 
+**Tiếng Việt** | [English](README.en.md)
+
 **Just A Rather Very Intelligent System** — Trợ lý AI giọng nói tiếng Việt chạy local trên Windows.
 **Version:** xem file [`VERSION`](VERSION) (nguồn duy nhất).
 
@@ -23,7 +25,7 @@ JARVIS là trợ lý AI cá nhân chạy hoàn toàn trên máy Windows, lấy c
 4. [Lời đề nghị, "ừ" và chống bịa](#-lời-đề-nghị-ừ-và-chống-bịa)
 5. [18 chuyên viên tác vụ (Agents)](#-18-chuyên-viên-tác-vụ-agents)
 6. [Tự học, tự tiến hóa, Dream, tự vá lỗi](#-tự-học-tự-tiến-hóa-dream-tự-vá-lỗi)
-7. [Bộ nhớ, Memory Center và Obsidian Wiki](#-bộ-nhớ-memory-center-và-obsidian-wiki)
+7. [Bộ nhớ, Memory Center và Obsidian Wiki](#️-bộ-nhớ-memory-center-và-obsidian-wiki)
 8. [Giao diện (Frontend)](#-giao-diện-frontend)
 9. [Mở rộng: lệnh, skill, hook, MCP, Telegram](#-mở-rộng-lệnh-skill-hook-mcp-telegram)
 10. [Kiến trúc hệ thống](#️-kiến-trúc-hệ-thống)
@@ -304,7 +306,7 @@ Danh sách nặng (agents, hooks, skills, prompts, commands, plugins) lấy từ
 ### Các bước
 
 ```bash
-git clone https://github.com/ErikPuw/jarvis-windows.git
+git clone https://github.com/erikpuw/jarvis-windows.git
 cd jarvis-windows
 pip install -r requirements.txt
 cd frontend && npm install && cd ..
@@ -322,6 +324,8 @@ cd frontend && npm run dev     # frontend, mở terminal riêng
 ```
 
 ### Cấu hình `.env`
+
+Danh sách đầy đủ kèm giải thích nằm trong [`.env.example`](.env.example). Các biến quan trọng nhất:
 
 | Biến | Mặc định | Mô tả |
 |------|----------|-------|
@@ -430,6 +434,7 @@ rtk python -m pytest tests -q --ignore=tests/live
 - **`scrub_untrusted`** (`engine/core/guardrails.py`): lọc từng dòng nghi prompt injection (mẫu `PROMPT_INJECTION_PATTERNS`) khỏi kết quả tool/agent trước khi đưa vào lịch sử hoặc prompt — áp dụng ở `actions.execute_tool` và `dispatcher.run_one`; một dòng xấu không làm hỏng cả kết quả.
 - **`<untrusted_data>`**: báo cáo của agent gửi lại cho classifier (`next_tasks`) được bọc trong thẻ này kèm câu nhắc "là dữ liệu trả về, không phải yêu cầu" — chặn việc model coi nội dung web/tool là chỉ thị mới.
 - Sau khi một agent đọc nội dung ngoài (`search`, `media`, `rag`, `legal`, `vietlott`), `next_tasks` chặn mọi bước điều khiển máy tiếp theo (`win_control`, `desktop`, `goose`); các bước khác (vd. `notes`, `office`) vẫn chạy bình thường.
+- **Kiểm tra Origin** (`engine/security/policy.py`, `firewall.py`): firewall IP không chặn được trang web độc hại mở trên chính máy này (request đi từ loopback). Trình duyệt luôn gửi `Origin` cho WebSocket và cho POST/PUT/DELETE khác origin, nên `/ws/voice` và mọi request ghi đều bị từ chối trừ khi origin cùng host hoặc nằm trong `JARVIS_CORS_ORIGINS`. Client không phải trình duyệt (Telegram, httpx, curl) không gửi `Origin` nên không bị ảnh hưởng.
 
 ---
 
@@ -459,6 +464,7 @@ rtk python -m pytest tests -q --ignore=tests/live
 | CSS ép `display:flex` lên lưới Bộ nhớ, chữ IN HOA, chữ < 12px | Bố cục vỡ, font lệch | Sửa lưới, một họ font, tối thiểu 12px; gỡ 42 rule chết |
 | Command-bar gợi ý `/help`, `/clear`, skill, `/plugin` | Gõ vào đều "Không tìm thấy lệnh" | Chỉ gợi ý lệnh backend chạy được |
 | Thu nhỏ sidebar Settings: nhãn `display:none` + icon căn giữa ngay lập tức | Chữ/icon nhảy trong lúc co chiều rộng | Icon giữ nguyên toạ độ, nhãn mờ dần (`opacity`), không xuống dòng |
+| Dashboard lấy số phiên bản từ `.env` | Lệch với `VERSION` | Vite đọc file `VERSION` |
 
 **Mascot trên nút gửi** (`frontend/src/mascot.ts`) — port TypeScript thuần của [nilbuild/page-mascot](https://github.com/nilbuild/page-mascot) (MIT), không cần React (gói npm `page-mascot` không dùng tới, có thể gỡ).
 - **Vị trí:** đứng yên ngay trên `#cmd-send`, thân đè lên viền trên command-bar (lún 20px) để trông như ngồi trên thanh lệnh; bên trái vẫn là dòng trạng thái. Cỡ 56px (mobile 44px).
@@ -479,7 +485,6 @@ rtk python -m pytest tests -q --ignore=tests/live
 - **Lớp:** `z-index: 1`, chỉ nằm trên orb; HUD, chat, bản đồ, Settings đều đè lên được. `pointer-events: none` nên không chặn click.
 - **Font:** Oswald Light (300), nhúng vào bản build qua `@fontsource/oswald` (bộ latin) — app desktop chạy offline vẫn đúng font.
 - **Test:** `frontend/e2e/clock.cjs` (giờ giả bằng `page.clock`: hiện 10:59, lật sang 11:00, dọn tấm lật, vị trí, lớp, font, mobile).
-| Dashboard lấy số phiên bản từ `.env` | Lệch với `VERSION` | Vite đọc file `VERSION` |
 
 Thêm: sửa và lưu prompt (`POST /api/prompts/save`, chỉ ghi đè `prompt/*.md` có sẵn); Graphfy thành bản đồ luồng chạy thật. Test: `tests/test_settings_status_api.py`, `frontend/e2e/settings-dashboard.cjs`.
 
