@@ -4,7 +4,7 @@ import path from "path";
 
 export default defineConfig(() => {
   const rootDir = typeof import.meta.dirname !== "undefined" ? path.resolve(import.meta.dirname, "..") : process.cwd();
-  // Single version source (README "Quy tắc đánh số"): the repo-root VERSION file.
+  // Single version source (CHANGELOG.md "Quy tắc đánh số"): the repo-root VERSION file.
   const appVersion = readFileSync(path.join(rootDir, "VERSION"), "utf-8").trim();
   return {
     define: {

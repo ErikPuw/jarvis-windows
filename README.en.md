@@ -2,44 +2,60 @@
 
 [Tiếng Việt](README.md) | **English**
 
-**Just A Rather Very Intelligent System** — a Vietnamese-speaking voice AI assistant that runs locally on Windows.
-**Version:** see the [`VERSION`](VERSION) file (single source of truth).
+**Just A Rather Very Intelligent System** — a Vietnamese-speaking voice AI assistant whose "brain" runs right on your Windows machine.
 
 > *"Thưa ngài, tôi có thể giúp gì cho ngài?"* — *"How may I help you, sir?"*
 
-JARVIS is a personal AI assistant that runs entirely on a Windows machine, inspired by JARVIS from Iron Man. It can:
-- hold real-time spoken conversations in Vietnamese;
-- control applications on the machine;
-- look up data on the web;
-- answer questions over documents (RAG);
-- learn from conversations;
-- show a 3D HUD that reacts to audio.
+**Version:** see the [`VERSION`](VERSION) file (single source of truth) · [Changelog](CHANGELOG.en.md)
 
-> **Note:** JARVIS is built for Vietnamese. Prompts, voice recognition (`vi-VN`), TTS voices and most command keywords are Vietnamese. Example commands below keep the original Vietnamese with an English gloss.
+![JARVIS home screen: an audio-reactive particle orb, a clock and a telemetry panel](assets/screenshots/hud-main.webp)
 
----
+## 🎯 What Does JARVIS Do?
+
+You speak or type in Vietnamese, and JARVIS understands and **does real work** on your machine:
+
+- 🎙️ **Real-time voice conversation** in Vietnamese.
+- 🖥️ **Machine control**: open/close apps, read the screen, use the webcam, create and edit Word/Excel/PowerPoint files.
+- 🔎 **Lookups**: news, weather, gold prices and exchange rates, YouTube, Vietnamese law.
+- 📄 **Question answering over your own documents** (RAG).
+- 🧠 **Remembers and learns** from conversations, with a mirror in Obsidian you can read back.
+
+**Where does it run?** The LLM, embeddings and memory run **on your machine** (llama.cpp, SQLite). Speech recognition (Chrome's Web Speech API), the default voice (Edge-TTS) and web lookups need internet.
+
+**What do you need?** Windows 10/11, Python 3.11+, Node.js 18+, Chrome, a llama.cpp server (LLM and embeddings) and Redis. Details in [Installation and configuration](#-installation-and-configuration).
+
+> **Status:** a personal project under active development. Found a bug or have an idea? Open an [issue](https://github.com/erikpuw/jarvis-windows/issues) (templates included).
+>
+> JARVIS is built for Vietnamese: prompts, voice recognition (`vi-VN`), TTS voices and most command keywords are Vietnamese. Example commands below keep the original Vietnamese with an English gloss.
 
 ## 📑 Table of Contents
 
-1. [Key features](#-key-features)
-2. [How a conversation turn works](#-how-a-conversation-turn-works)
-3. [Prompts in one place](#-prompts-in-one-place)
-4. [Offers, "yes" and anti-fabrication](#-offers-yes-and-anti-fabrication)
-5. [18 task agents](#-18-task-agents)
-6. [Self-learning, evolution, Dream, self-healing](#-self-learning-evolution-dream-self-healing)
-7. [Memory, Memory Center and Obsidian wiki](#️-memory-memory-center-and-obsidian-wiki)
-8. [Frontend](#-frontend)
-9. [Extending: commands, skills, hooks, MCP, Telegram](#-extending-commands-skills-hooks-mcp-telegram)
-10. [System architecture](#️-system-architecture)
-11. [Installation and configuration](#-installation-and-configuration)
-12. [API](#-api)
-13. [Directory structure](#-directory-structure)
-14. [Testing and measurement](#-testing-and-measurement)
-15. [Changelog](#-changelog)
+1. [What Does JARVIS Do?](#-what-does-jarvis-do)
+2. [Key Features](#-key-features)
+3. [How a Conversation Turn Works](#-how-a-conversation-turn-works)
+4. [Prompts in One Place](#-prompts-in-one-place)
+5. [Offers, "Yes" and Anti-Fabrication](#-offers-yes-and-anti-fabrication)
+6. [18 Task Agents](#-18-task-agents)
+7. [Self-Learning, Evolution, Dream, Self-Healing](#-self-learning-evolution-dream-self-healing)
+8. [Memory, Memory Center and Obsidian Wiki](#️-memory-memory-center-and-obsidian-wiki)
+9. [Frontend](#-frontend)
+10. [Extending: Commands, Skills, Hooks, MCP, Telegram](#-extending-commands-skills-hooks-mcp-telegram)
+11. [Document Store (`@rag`)](#-document-store-rag)
+12. [Job Search (`@jobs`)](#-job-search-jobs)
+13. [System Architecture](#️-system-architecture)
+14. [Installation and Configuration](#-installation-and-configuration)
+15. [API](#-api)
+16. [Directory Structure](#-directory-structure)
+17. [Testing and Measurement](#-testing-and-measurement)
+18. [Security](#-security)
+19. [Changelog](#-changelog)
+20. [License & Disclaimer](#-license--disclaimer)
 
 ---
 
 ## 🌟 Key Features
+
+### 🧱 Core — conversation and machine control
 
 | Feature | Description |
 |---------|-------------|
@@ -50,12 +66,26 @@ JARVIS is a personal AI assistant that runs entirely on a Windows machine, inspi
 | **Controlled offers** | While you are just chatting, Jarvis offers actions it can take using `<ask_user>`/`<action_run>` tags. When you reply "yes" (`ừ`), code runs exactly the offered tool — the LLM does not guess again |
 | **Centralised prompts** | All prompt text lives in `prompt/*.md`; the code that assembles prompts lives in `engine/prompts/` |
 | **Anti-fabrication** | Every chat turn carries a `<tool_status>` directive stating that no tool ran this turn, so chat cannot claim it "checked" something or report system state |
-| **Self-reflective learning** | Each learning pass has a proposal step and a critique step, then code enforces hard checks. The latest lesson can be undone precisely (`retract`). Successful workflows are replayed when a command matches verbatim |
+| **Security** | Prompt-injection guardrails, IP firewall + Origin check (against CSRF / WebSocket hijacking) for REST and WebSocket, connection monitoring |
+
+### 🧠 Memory and learning
+
+| Feature | Description |
+|---------|-------------|
 | **HyperRAG** | Dense vectors + BM25 + Reciprocal Rank Fusion for local document retrieval. Watches the `data/documents/` folder |
 | **Memory & Obsidian** | SQLite + FTS5 (`data/jarvis.db`) is the source of truth. The Obsidian vault (`data/wiki/`) is a one-way mirror. The Memory Center in the WebUI is the only place to edit |
+| **Self-reflective learning** | Each learning pass has a proposal step and a critique step, then code enforces hard checks. The latest lesson can be undone precisely (`retract`). Successful workflows are replayed when a command matches verbatim |
 | **Dream Cycle** | Runs during idle night hours to summarise and clean up conversations, agent results and old wiki pages. Always backs up before merging |
 | **Self-Healing** | Scans logs every 60 seconds, classifies errors and writes them to `Errors.md`. Only asks Goose to fix code after you approve |
-| **Security** | Prompt-injection guardrails, IP firewall + Origin check (against CSRF / WebSocket hijacking) for REST and WebSocket, connection monitoring |
+
+### 🇻🇳 Extras (optional)
+
+Each extra is its own agent in `engine/agents/` (full list in [18 task agents](#-18-task-agents)):
+
+- **Vietnam daily life**: weather, news, gold/fuel prices and exchange rates, lunar calendar, zodiac, CGV showtimes, Epic free games, maps and directions.
+- **Entertainment**: music, YouTube, livestreams, movies.
+- **Specialised lookups**: Vietnamese legal documents; Vietlott (statistics, backtests, no predictions).
+- **Work**: Outlook email and calendar, notes, `@jobs` job search and cover-letter drafting (sends only after you approve).
 
 ---
 
@@ -218,7 +248,21 @@ All of these run in the background when the system is idle and never slow down a
 
 ## 🎨 Frontend
 
-Built with **Vite + TypeScript + Three.js**, Dark-Tech Glassmorphism style. Source in `frontend/src/`:
+Built with **Vite + TypeScript + Three.js**, Dark-Tech Glassmorphism style.
+
+<p align="center"><img src="assets/screenshots/mobile.webp" alt="JARVIS on a phone: the 8/8 step tracker and the reply" width="260"></p>
+
+*On a phone: the step tracker shows each step (guardrail, routing, LLM, TTS) before the reply.*
+
+![Graphfy: a module map generated from code](assets/screenshots/graphfy.webp)
+
+*Graphfy in Settings: a module map generated from the code; purple edges are LLM call sites.*
+
+![Graphfy on hover: only one module's edges are kept](assets/screenshots/graphfy-focus.webp)
+
+*Hover a block to keep only the edges that touch it.*
+
+Source in `frontend/src/`:
 
 | File | Role |
 |------|------|
@@ -254,6 +298,37 @@ Heavy lists (agents, hooks, skills, prompts, commands, plugins) come from `/api/
 - **MCP** (`config/mcp_config.json`): `wikipedia-mcp`, `gitnexus`, `context7`, `headroom`, `ScraplingServer`, `codebase-memory-mcp`.
 - **Command Bar**: `/command_name <args>` runs a command from `commands/` (type `/command_name` with no args and JARVIS asks for each argument); `@agent message` calls an agent directly (router step 1). The Commands and Agents pages in Settings document this exact syntax.
 - **Telegram bot**: remote control with Chat ID authentication. The `/agents` command reads the directory from `prompt/tools.md`.
+
+---
+
+## 📚 Document Store (`@rag`)
+
+Documents saved to the store are retrieved with explicit commands. The router matches the `@rag` prefix with a regex, not the LLM, so it never confuses it with chat or other commands. Sub-commands are Vietnamese keywords:
+
+- `@rag <question>` — search the store (dense + BM25 + RRF + rerank), drop chunks with `hybrid_score` < `RAG_MIN_SCORE` (default `0.2`); the LLM answers only from evidence, with sources (file name, page). If a file is attached: ask about that file.
+- `@rag lưu` ("save") + an attached file — save it to the long-term store. Without a file, "lưu…" is treated as a question.
+- `@rag danh sách` ("list") — documents in the store and their IDs.
+- `@rag xóa <id>` ("delete") — remove from the store. Accepts exactly one ID; `xóa` followed by several words is treated as a question.
+- `@rag` — help.
+
+Files dropped into `data/documents/` (or `RAG_WATCH_FOLDER`) are also indexed into the same store by the watcher. Changing the embedding model requires re-indexing: vectors from two models are not comparable, and a different dimension is rejected.
+
+## 💼 Job Search (`@jobs`)
+
+JARVIS interviews you to build a profile + a Vietnamese PDF CV, searches every morning (after 08:00) for job posts **that accept CVs by email**, drafts cover letters, and only sends them via Gmail once you approve.
+
+Gmail setup (once): enable 2-Step Verification, create an "App password" at `myaccount.google.com/apppasswords`, then add it to `.env` yourself:
+
+    GMAIL_ADDRESS=you@gmail.com
+    GMAIL_APP_PASSWORD=xxxxxxxxxxxxxxxx
+
+Commands (UI or Telegram; keywords are Vietnamese):
+- `@jobs phỏng vấn` (interview) / `@jobs tiếp tục` (continue) / `@jobs sửa hồ sơ` (edit profile)
+- `@jobs tìm` (search) — search now; `@jobs tin <text or link>` (post) — evaluate one post
+- Review: `gửi 1, 3` (send), `bỏ 2` (skip), `sửa thư 1: <request>` (edit letter) (the list expires after 3 days, max 10 letters/day)
+- `@jobs trạng thái` (status)
+
+Data lives in `data/jobs/` (profile, CV, pending list, sent log). It never applies on sites that require login (TopCV, vLance, LinkedIn); it doesn't write English CVs; posts requiring more English than the profile states are skipped.
 
 ---
 
@@ -440,115 +515,13 @@ rtk python -m pytest tests -q --ignore=tests/live
 
 ## 📝 Changelog
 
-**Numbering** `MAJOR.MINOR.PATCH`:
-- The version number lives in exactly one place: the [`VERSION`](VERSION) file. `/api/health` and the dashboard (Vite) read it; the README only links to it.
-- For each release: bump `VERSION` (the only place to edit), add a new entry to the log below, then tag `vX.Y.Z` in git.
-- Which number to bump:
-  - `PATCH`: bug fixes, no change in designed behaviour.
-  - `MINOR`: new features, or prompt/flow changes that don't break existing data.
-  - `MAJOR`: architecture changes, or data/DB changes that require migration.
-
-### v9.9.6 — 2026-09-27
-
-**Settings becomes a full-screen dashboard.** Spec and plan written by Claude, implemented by another model (plus 9 extra pages beyond the plan, on request), then reviewed and fixed by Claude.
-
-| Issue found in review | Impact | Fix |
-|---|---|---|
-| `/api/settings/status` returned raw MCP `args` | Leaked the context7 API key to every client | Return only name/command/status; secret values in `args` redacted (`_redact_args`) |
-| Status bundled README, prompts, commands… (≈93KB) into every poll | Settings slow, prone to timeouts | Moved to `/api/settings/catalog`, fetched when a page opens |
-| `mcp_servers` changed from dict to list | HUD showed "0,1,2" with error dots | Return `{name: status}` from the real hub again |
-| `/api/mcp/servers` used `_json` without importing it | MCP page broken | Fixed; status taken from the hub instead of the `enabled` flag |
-| UI sent `SERVER_API_KEY`, `FISH_AUDIO_API_KEY` | Backend rejected them, showing "connection error" | Switched to `LOCAL_API_KEY`, `TTS_LOCAL_KEY` |
-| Moving into `settings/` dropped the `jarvis:overlay` event | Orb didn't pause | Event emitted again |
-| Voice page hard-coded 4 Google voices and saved to the wrong API | Saved fake voices | Load `/api/tts/voices`, save via `/api/tts/voice`, wire up the clone button |
-| CSS forced `display:flex` on the Memory grid, ALL-CAPS text, text < 12px | Broken layout, mismatched fonts | Grid fixed, one font family, 12px minimum; 42 dead rules removed |
-| Command bar suggested `/help`, `/clear`, skills, `/plugin` | Every one returned "command not found" | Only suggest commands the backend can run |
-| Collapsing the Settings sidebar: labels `display:none` + icons re-centred instantly | Text/icons jumped while the width shrank | Icons keep their position, labels fade (`opacity`), no wrapping |
-| Dashboard read the version number from `.env` | Out of sync with `VERSION` | Vite reads the `VERSION` file |
-
-**Mascot on the send button** (`frontend/src/mascot.ts`) — a pure TypeScript port of [nilbuild/page-mascot](https://github.com/nilbuild/page-mascot) (MIT), no React needed (the `page-mascot` npm package is unused and can be removed).
-- **Position:** sits still right above `#cmd-send`, its body overlapping the command bar's top edge (sunk 20px) so it looks perched on the bar; the status line stays on the left. 56px (44px on mobile).
-- **Hit area:** only the head receives clicks; clicks pass through the body so the send button still works.
-- **Interaction:** the head follows the mouse (8 directions) and blinks occasionally; click to change expression (heart, sparkle, happy), 4 quick clicks = dizzy.
-- **Follows JARVIS state** via the `jarvis:mascot` event (emitted in `transition()` and `showError()`): thinking looks up, working sparkles, speaking is happy, error/restart is dizzy, idle for 60 seconds falls asleep.
-- **Characters:** sprites `frontend/public/mascots/<name>-directions.webp` and `<name>-reactions.webp` (3×3 grid, transparent background); switch characters with the `name` parameter of `mountMascot` in `main.ts`.
-- **Static files:** `mount_frontend_dist` (`engine/UIUX/ui_engine.py`) serves `/` and every folder in `frontend/dist` (`assets/`, `mascots/`, …) — previously only `/assets`, so mascot images 404'd in the desktop app.
-- **Tests:** `frontend/e2e/mascot.cjs` (position, not covering the send button, gaze direction, expressions, states, mobile) and `tests/test_frontend_static.py`.
-
-**Redesigned step tracker (flow_tracker) and agent cards (flow_agents)** — one UI font at 12–12.5px for both (no monospace), status markers the same size.
-- **Step tracker:** header = status icon + current step + a `6/7` pill counter + a thin progress bar; the list is a vertical timeline (green dot done · pulsing blue running · grey pending), no "1. 2. 3." numbering; text after "→" becomes dimmed secondary text, trailing "..." removed from labels.
-- **Agent cards:** lucide icon in a rounded tile + name + current activity (no "Executing:" prefix). The backend still sends `"<emoji> Agent <Name>"` (Telegram still uses it); the frontend strips the emoji and picks the icon by name from `AGENT_ICON` (`frontend/src/icons.ts`). New agents in `engine/agents` not yet in the table still show, with a robot icon.
-- **Test:** `frontend/e2e/flow-ui.cjs` (a fake WebSocket replays a run).
-
-**HTC Sense–style flip clock** (`frontend/src/clock.ts`) — one tile per digit (`HH:MM`; the `:` is 2 round dots emitting a "radar ping" — a blue ring spreading from each dot alternately, 2-second cycle, static when reduced motion is on), frameless, just a horizontal cut line through the digits; centred at the top of the main screen, right below the button row.
-- **Effect:** on change, the top half of the old digit folds down and the bottom half of the new digit drops in (2 × 0.3 seconds). Only digits that change flip (10:59 → 11:00 keeps the leading 1). With no background tile, the two static halves fade out/in with the flap so old and new digits never overlap. Disabled when reduced motion is on.
-- **Layer:** `z-index: 1`, above the orb only; the HUD, chat, map and Settings all overlay it. `pointer-events: none`, so it never blocks clicks.
-- **Font:** Oswald Light (300), bundled into the build via `@fontsource/oswald` (latin subset) — the desktop app shows the right font offline.
-- **Test:** `frontend/e2e/clock.cjs` (fake time via `page.clock`: shows 10:59, flips to 11:00, cleans up flaps, position, layer, font, mobile).
-
-Also: editing and saving prompts (`POST /api/prompts/save`, only overwrites existing `prompt/*.md`); Graphfy became a live execution-flow map. Tests: `tests/test_settings_status_api.py`, `frontend/e2e/settings-dashboard.cjs`.
-
-### v9.9.5 — 2026-09-25
-
-**Prompt consolidation and self-reflective learning.** Spec written by Claude, planned and implemented by another model, then reviewed and fixed by Claude. Results in real use: better context understanding, faster responses, fewer tokens, easier maintenance.
-
-| Issue found in review | Impact | Fix |
-|---|---|---|
-| History from the DB kept only `role` and `content` | `<ask_user>` tags were never rebuilt | Also keep the `ask_user`/`action_run` columns, tested on a temporary DB |
-| History dropped every duplicate user turn | Lost earlier "yes" turns, affecting the gate too | Only merge duplicates that are adjacent |
-| `unlearn_last_learning` deleted the newest lesson whenever you complained about routing | Data loss | Replaced by a controlled `retract` |
-| Prompts copied into `.md` but code still used hard-coded text | Editing the `.md` had no effect | Code wired to the `.md` files, verified by golden tests |
-| `learning_workflow.md` had a different output schema from the real prompt | Would have broken workflow learning | Rewritten to match the running prompt |
-| Learning tests wrote to the real `data/` | Left junk in `Evolution.md` | Tests run in a temp folder; cleanup script removes the junk |
-| Sampling changed after measuring on the old layout | Re-measured 10 times per scenario; the new config was worse | Kept `0.4 / 0.8 / 40` |
-| Cleanup script edited `STYLE.md` before backing up, and the other model ran `--apply` on its own | Backup was missing `skills/self_evolution/` | Back up before any change |
-
-**Further fixes after real use:**
-- **Media played the wrong video**: filler words "tôi muốn … của" ("I want … by") pushed a re-upload to the top of the list. Filler words are now removed before ranking. The results table is copied verbatim from the tool and names the track actually playing.
-- **Classifier**: hyphenated names such as "M-TP" count as one word, so shortened sentences are accepted.
-- **Chat fabricated security-check results** when no tool ran: added `<tool_status>` to every chat turn. Re-measured: fabrication 8/10 → 0/10, correct offer protocol 10/10. Declined turns no longer claim "already opened" (1/10). Fabricated data was removed from the DB and wiki journals, with backups in `data/backups/`.
-
-**Lessons from delegating to another model:**
-- Tests must exercise the real code path, not just call functions with fake data.
-- Tests must never touch the real `data/`.
-- `--apply` operations on real data are run by the user.
-- Only measure live on the layout actually running, with enough runs.
-- When editing a prompt, prove it is byte-identical to the old one, or state clearly that it changed.
-
-## Document Store (`@rag`)
-
-Documents saved to the store are retrieved with explicit commands. The router matches the `@rag` prefix with a regex, not the LLM, so it never confuses it with chat or other commands. Sub-commands are Vietnamese keywords:
-
-- `@rag <question>` — search the store (dense + BM25 + RRF + rerank), drop chunks with `hybrid_score` < `RAG_MIN_SCORE` (default `0.2`); the LLM answers only from evidence, with sources (file name, page). If a file is attached: ask about that file.
-- `@rag lưu` ("save") + an attached file — save it to the long-term store. Without a file, "lưu…" is treated as a question.
-- `@rag danh sách` ("list") — documents in the store and their IDs.
-- `@rag xóa <id>` ("delete") — remove from the store. Accepts exactly one ID; `xóa` followed by several words is treated as a question.
-- `@rag` — help.
-
-Files dropped into `data/documents/` (or `RAG_WATCH_FOLDER`) are also indexed into the same store by the watcher. Changing the embedding model requires re-indexing: vectors from two models are not comparable, and a different dimension is rejected.
-
-## Job Search (`@jobs`)
-
-JARVIS interviews you to build a profile + a Vietnamese PDF CV, searches every morning (after 08:00) for job posts **that accept CVs by email**, drafts cover letters, and only sends them via Gmail once you approve.
-
-Gmail setup (once): enable 2-Step Verification, create an "App password" at `myaccount.google.com/apppasswords`, then add it to `.env` yourself:
-
-    GMAIL_ADDRESS=you@gmail.com
-    GMAIL_APP_PASSWORD=xxxxxxxxxxxxxxxx
-
-Commands (UI or Telegram; keywords are Vietnamese):
-- `@jobs phỏng vấn` (interview) / `@jobs tiếp tục` (continue) / `@jobs sửa hồ sơ` (edit profile)
-- `@jobs tìm` (search) — search now; `@jobs tin <text or link>` (post) — evaluate one post
-- Review: `gửi 1, 3` (send), `bỏ 2` (skip), `sửa thư 1: <request>` (edit letter) (the list expires after 3 days, max 10 letters/day)
-- `@jobs trạng thái` (status)
-
-Data lives in `data/jobs/` (profile, CV, pending list, sent log). It never applies on sites that require login (TopCV, vLance, LinkedIn); it doesn't write English CVs; posts requiring more English than the profile states are skipped.
+Full change history and the versioning rules live in [CHANGELOG.en.md](CHANGELOG.en.md). The current version number is in the [`VERSION`](VERSION) file.
 
 ---
 
 ## 📜 License & Disclaimer
 
-**JARVIS v9.9.5** is a personalised development version for **erikpuw**.
+This is a personalised development version for **erikpuw**.
 
 Original project by [Ethan](https://ethanplus.ai).
 

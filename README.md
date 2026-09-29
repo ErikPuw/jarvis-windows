@@ -2,42 +2,58 @@
 
 **Tiếng Việt** | [English](README.en.md)
 
-**Just A Rather Very Intelligent System** — Trợ lý AI giọng nói tiếng Việt chạy local trên Windows.
-**Version:** xem file [`VERSION`](VERSION) (nguồn duy nhất).
+**Just A Rather Very Intelligent System** — Trợ lý AI giọng nói tiếng Việt, với "bộ não" chạy ngay trên máy Windows của bạn.
 
 > *"Thưa ngài, tôi có thể giúp gì cho ngài?"*
 
-JARVIS là trợ lý AI cá nhân chạy hoàn toàn trên máy Windows, lấy cảm hứng từ JARVIS trong Iron Man. Hệ thống có các khả năng sau:
-- nói chuyện bằng giọng tiếng Việt theo thời gian thực;
-- điều khiển ứng dụng trên máy;
-- tra cứu dữ liệu web;
-- hỏi đáp trên tài liệu (RAG);
-- tự học từ hội thoại;
-- giao diện 3D HUD phản ứng theo âm thanh.
+**Version:** xem file [`VERSION`](VERSION) (nguồn duy nhất) · [Nhật ký phiên bản](CHANGELOG.md)
 
----
+![Màn hình chính của JARVIS: quả cầu hạt phản ứng theo âm thanh, đồng hồ và bảng telemetry](assets/screenshots/hud-main.webp)
+
+## 🎯 JARVIS Làm Gì?
+
+Bạn nói hoặc gõ bằng tiếng Việt, JARVIS hiểu và **làm việc thật** trên máy của bạn:
+
+- 🎙️ **Trò chuyện bằng giọng nói** tiếng Việt, theo thời gian thực.
+- 🖥️ **Điều khiển máy**: mở/đóng ứng dụng, đọc màn hình, dùng webcam, tạo và sửa tệp Word/Excel/PowerPoint.
+- 🔎 **Tra cứu**: tin tức, thời tiết, giá vàng và tỷ giá, YouTube, luật Việt Nam.
+- 📄 **Hỏi đáp trên tài liệu của bạn** (RAG).
+- 🧠 **Nhớ và tự học** từ các cuộc trò chuyện, có bản chiếu sang Obsidian để bạn đọc lại.
+
+**Chạy ở đâu?** LLM, embeddings và bộ nhớ chạy **trên máy bạn** (llama.cpp, SQLite). Nhận giọng (Web Speech API của Chrome), giọng đọc mặc định (Edge-TTS) và các tính năng tra cứu web cần internet.
+
+**Cần gì để chạy?** Windows 10/11, Python 3.11+, Node.js 18+, Chrome, llama.cpp server (LLM và embeddings) và Redis. Chi tiết ở mục [Cài đặt và cấu hình](#-cài-đặt-và-cấu-hình).
+
+> **Trạng thái:** dự án cá nhân, đang phát triển liên tục. Gặp lỗi hoặc có ý tưởng? Mở [issue](https://github.com/erikpuw/jarvis-windows/issues) (có mẫu sẵn).
 
 ## 📑 Mục Lục
 
-1. [Tính năng nổi bật](#-tính-năng-nổi-bật)
-2. [Một lượt hội thoại chạy thế nào](#-một-lượt-hội-thoại-chạy-thế-nào)
-3. [Prompt tập trung một nơi](#-prompt-tập-trung-một-nơi)
-4. [Lời đề nghị, "ừ" và chống bịa](#-lời-đề-nghị-ừ-và-chống-bịa)
-5. [18 chuyên viên tác vụ (Agents)](#-18-chuyên-viên-tác-vụ-agents)
-6. [Tự học, tự tiến hóa, Dream, tự vá lỗi](#-tự-học-tự-tiến-hóa-dream-tự-vá-lỗi)
-7. [Bộ nhớ, Memory Center và Obsidian Wiki](#️-bộ-nhớ-memory-center-và-obsidian-wiki)
-8. [Giao diện (Frontend)](#-giao-diện-frontend)
-9. [Mở rộng: lệnh, skill, hook, MCP, Telegram](#-mở-rộng-lệnh-skill-hook-mcp-telegram)
-10. [Kiến trúc hệ thống](#️-kiến-trúc-hệ-thống)
-11. [Cài đặt và cấu hình](#-cài-đặt-và-cấu-hình)
-12. [API](#-api)
-13. [Cấu trúc thư mục](#-cấu-trúc-thư-mục)
-14. [Kiểm thử và đo đạc](#-kiểm-thử-và-đo-đạc)
-15. [Nhật ký phiên bản](#-nhật-ký-phiên-bản)
+1. [JARVIS Làm Gì?](#-jarvis-làm-gì)
+2. [Tính Năng Nổi Bật](#-tính-năng-nổi-bật)
+3. [Một Lượt Hội Thoại Chạy Thế Nào](#-một-lượt-hội-thoại-chạy-thế-nào)
+4. [Prompt Tập Trung Một Nơi](#-prompt-tập-trung-một-nơi)
+5. [Lời Đề Nghị, "ừ" và Chống Bịa](#-lời-đề-nghị-ừ-và-chống-bịa)
+6. [18 Chuyên Viên Tác Vụ (Agents)](#-18-chuyên-viên-tác-vụ-agents)
+7. [Tự Học, Tự Tiến Hóa, Dream, Tự Vá Lỗi](#-tự-học-tự-tiến-hóa-dream-tự-vá-lỗi)
+8. [Bộ Nhớ, Memory Center và Obsidian Wiki](#️-bộ-nhớ-memory-center-và-obsidian-wiki)
+9. [Giao Diện (Frontend)](#-giao-diện-frontend)
+10. [Mở Rộng: Lệnh, Skill, Hook, MCP, Telegram](#-mở-rộng-lệnh-skill-hook-mcp-telegram)
+11. [Kho Tài Liệu (`@rag`)](#-kho-tài-liệu-rag)
+12. [Tìm Việc (`@jobs`)](#-tìm-việc-jobs)
+13. [Kiến Trúc Hệ Thống](#️-kiến-trúc-hệ-thống)
+14. [Cài Đặt và Cấu Hình](#-cài-đặt-và-cấu-hình)
+15. [API](#-api)
+16. [Cấu Trúc Thư Mục](#-cấu-trúc-thư-mục)
+17. [Kiểm Thử và Đo Đạc](#-kiểm-thử-và-đo-đạc)
+18. [Bảo Mật](#-bảo-mật)
+19. [Nhật Ký Phiên Bản](#-nhật-ký-phiên-bản)
+20. [Giấy Phép & Tuyên Bố Miễn Trừ](#-giấy-phép--tuyên-bố-miễn-trừ)
 
 ---
 
 ## 🌟 Tính Năng Nổi Bật
+
+### 🧱 Lõi — hội thoại và điều khiển máy
 
 | Tính năng | Mô tả |
 |-----------|-------|
@@ -48,12 +64,26 @@ JARVIS là trợ lý AI cá nhân chạy hoàn toàn trên máy Windows, lấy c
 | **Lời đề nghị có kiểm soát** | Khi ngài chỉ trò chuyện, Jarvis đề nghị việc có thể làm bằng thẻ `<ask_user>`/`<action_run>`. Ngài đáp "ừ" thì code chạy đúng tool đã đề nghị, không cần LLM đoán lại |
 | **Prompt tập trung** | Chữ của mọi prompt nằm trong `prompt/*.md`, code ghép prompt nằm trong `engine/prompts/` |
 | **Chống bịa kết quả** | Mọi lượt chat đều có chỉ thị `<tool_status>` nói rằng ở lượt này không có công cụ nào chạy, nên chat không được tự nói "đã kiểm tra" hay nêu trạng thái hệ thống |
-| **Tự học tự phản tư** | Mỗi lượt học gồm một lượt đề xuất và một lượt phản biện, rồi code chốt chặn. Có thể gỡ đúng điều vừa học (`retract`). Workflow chạy thành công được dùng lại khi câu lệnh khớp nguyên văn |
+| **An ninh** | Guardrails chống prompt injection, firewall IP + kiểm tra Origin (chống CSRF/WebSocket hijacking) cho REST và WebSocket, theo dõi kết nối |
+
+### 🧠 Trí nhớ và tự học
+
+| Tính năng | Mô tả |
+|-----------|-------|
 | **HyperRAG** | Kết hợp Dense Vector, BM25 và Reciprocal Rank Fusion để tra cứu tài liệu local. Tự theo dõi thư mục `data/documents/` |
 | **Bộ nhớ & Obsidian** | SQLite + FTS5 (`data/jarvis.db`) là nguồn gốc. Obsidian Vault (`data/wiki/`) là bản chiếu một chiều. Memory Center trong WebUI là nơi sửa duy nhất |
+| **Tự học tự phản tư** | Mỗi lượt học gồm một lượt đề xuất và một lượt phản biện, rồi code chốt chặn. Có thể gỡ đúng điều vừa học (`retract`). Workflow chạy thành công được dùng lại khi câu lệnh khớp nguyên văn |
 | **Dream Cycle** | Chạy lúc rảnh ban đêm để tóm tắt và dọn hội thoại, kết quả agent, wiki cũ. Luôn sao lưu trước khi gộp |
 | **Self-Healing** | Quét log mỗi 60 giây, phân loại lỗi và ghi vào `Errors.md`. Chỉ nhờ Goose sửa code khi ngài đã duyệt |
-| **An ninh** | Guardrails chống prompt injection, firewall IP + kiểm tra Origin (chống CSRF/WebSocket hijacking) cho REST và WebSocket, theo dõi kết nối |
+
+### 🇻🇳 Tiện ích thêm (tùy chọn)
+
+Mỗi tiện ích là một agent riêng trong `engine/agents/` (danh sách đầy đủ ở mục [18 chuyên viên tác vụ](#-18-chuyên-viên-tác-vụ-agents)):
+
+- **Đời sống Việt Nam**: thời tiết, tin tức, giá vàng/xăng/tỷ giá, lịch vạn niên, cung hoàng đạo, lịch chiếu CGV, game miễn phí Epic, bản đồ và chỉ đường.
+- **Giải trí**: nghe nhạc, YouTube, livestream, phim.
+- **Tra cứu chuyên biệt**: văn bản pháp luật Việt Nam; Vietlott (thống kê, backtest, không dự đoán).
+- **Công việc**: email và lịch Outlook, ghi chú, `@jobs` tìm việc và soạn thư xin việc (chỉ gửi khi bạn duyệt).
 
 ---
 
@@ -216,7 +246,21 @@ Tất cả chạy nền khi hệ thống rảnh, không làm chậm lượt trò
 
 ## 🎨 Giao Diện (Frontend)
 
-Xây dựng bằng **Vite + TypeScript + Three.js**, phong cách Dark-Tech Glassmorphism. Mã nguồn ở `frontend/src/`:
+Xây dựng bằng **Vite + TypeScript + Three.js**, phong cách Dark-Tech Glassmorphism.
+
+<p align="center"><img src="assets/screenshots/mobile.webp" alt="JARVIS trên điện thoại: khung các bước xử lý 8/8 và câu trả lời" width="260"></p>
+
+*Trên điện thoại: khung các bước xử lý hiện từng bước (guardrail, định tuyến, LLM, TTS) rồi mới đến câu trả lời.*
+
+![Graphfy: bản đồ module tự sinh từ code](assets/screenshots/graphfy.webp)
+
+*Graphfy trong Settings: bản đồ module tự sinh từ code, đường tím là chỗ gọi LLM.*
+
+![Graphfy khi rê chuột: chỉ giữ các đường của một module](assets/screenshots/graphfy-focus.webp)
+
+*Rê chuột vào một khối để chỉ giữ lại các đường liên quan đến nó.*
+
+Mã nguồn ở `frontend/src/`:
 
 | File | Vai trò |
 |------|---------|
@@ -252,6 +296,37 @@ Danh sách nặng (agents, hooks, skills, prompts, commands, plugins) lấy từ
 - **MCP** (`config/mcp_config.json`): `wikipedia-mcp`, `gitnexus`, `context7`, `headroom`, `ScraplingServer`, `codebase-memory-mcp`.
 - **Command Bar**: `/tên_lệnh <tham số>` chạy lệnh trong `commands/` (gõ `/tên_lệnh` trống để JARVIS hỏi từng tham số); `@agent câu lệnh` gọi thẳng agent (bước 1 của router). Trang Commands và Agents trong Settings ghi đúng cú pháp này.
 - **Telegram Bot**: điều khiển từ xa, xác thực Chat ID. Lệnh `/agents` đọc danh bạ từ `prompt/tools.md`.
+
+---
+
+## 📚 Kho Tài Liệu (`@rag`)
+
+Tài liệu lưu vào kho được tìm lại bằng lệnh tường minh. Router bắt tiền tố `@rag` bằng regex, không qua LLM, nên không nhầm với câu chat hay lệnh khác.
+
+- `@rag <câu hỏi>` — tìm trong kho (dense + BM25 + RRF + rerank), bỏ đoạn có `hybrid_score` < `RAG_MIN_SCORE` (mặc định `0.2`), LLM trả lời chỉ từ bằng chứng, kèm nguồn (tên tệp, trang). Nếu đang đính kèm tệp: hỏi về chính tệp đó.
+- `@rag lưu` + đính kèm tệp — lưu vào kho lâu dài. Không có tệp thì "lưu…" được hiểu là câu hỏi.
+- `@rag danh sách` — tài liệu trong kho và mã.
+- `@rag xóa <mã>` — xóa khỏi kho. Chỉ nhận đúng một mã; `xóa` kèm nhiều từ được hiểu là câu hỏi.
+- `@rag` — trợ giúp.
+
+Tệp thả vào `data/documents/` (hoặc `RAG_WATCH_FOLDER`) cũng được watcher tự index vào cùng kho. Đổi model embedding thì phải index lại: vector của hai model không so được với nhau, và khác số chiều sẽ bị từ chối.
+
+## 💼 Tìm Việc (`@jobs`)
+
+JARVIS phỏng vấn ngài để tạo hồ sơ + CV PDF tiếng Việt, tự tìm tin tuyển dụng **có email nhận CV** mỗi sáng (sau 08:00), soạn thư xin việc, và chỉ gửi qua Gmail khi ngài duyệt.
+
+Cấu hình Gmail (một lần): bật Xác minh 2 bước, tạo "Mật khẩu ứng dụng" tại `myaccount.google.com/apppasswords`, rồi tự thêm vào `.env`:
+
+    GMAIL_ADDRESS=ban@gmail.com
+    GMAIL_APP_PASSWORD=xxxxxxxxxxxxxxxx
+
+Lệnh (giao diện hoặc Telegram):
+- `@jobs phỏng vấn` / `@jobs tiếp tục` / `@jobs sửa hồ sơ`
+- `@jobs tìm` — tìm ngay; `@jobs tin <nội dung hoặc link>` — đánh giá một tin
+- Duyệt: `gửi 1, 3`, `bỏ 2`, `sửa thư 1: <ý muốn>` (danh sách hết hạn sau 3 ngày, tối đa 10 thư/ngày)
+- `@jobs trạng thái`
+
+Dữ liệu nằm trong `data/jobs/` (hồ sơ, CV, danh sách chờ, nhật ký đã gửi). Không nộp trên trang cần đăng nhập (TopCV, vLance, LinkedIn); không viết CV tiếng Anh; tin yêu cầu tiếng Anh cao hơn trình độ trong hồ sơ bị bỏ qua.
 
 ---
 
@@ -438,115 +513,13 @@ rtk python -m pytest tests -q --ignore=tests/live
 
 ## 📝 Nhật Ký Phiên Bản
 
-**Quy tắc đánh số** `MAJOR.MINOR.PATCH`:
-- Số phiên bản nằm ở một chỗ duy nhất là file [`VERSION`](VERSION). `/api/health` và dashboard (Vite) đọc từ file này; README chỉ trỏ link tới nó.
-- Mỗi lần phát hành: tăng số trong `VERSION` (chỉ sửa 1 chỗ này), thêm một mục mới vào nhật ký dưới đây, rồi gắn git tag `vX.Y.Z`.
-- Tăng số nào:
-  - `PATCH`: sửa lỗi, không đổi hành vi thiết kế.
-  - `MINOR`: thêm tính năng, hoặc đổi prompt/luồng mà không làm vỡ dữ liệu cũ.
-  - `MAJOR`: đổi kiến trúc, hoặc đổi dữ liệu/DB theo cách cần chuyển đổi.
-
-### v9.9.6 — 2026-09-27
-
-**Settings thành dashboard toàn màn hình.** Spec và plan do Claude viết, một model khác triển khai (kèm 9 trang ngoài plan theo yêu cầu), rồi Claude review và sửa.
-
-| Vấn đề phát hiện khi review | Hậu quả | Cách sửa |
-|---|---|---|
-| `/api/settings/status` trả nguyên `args` của MCP | Lộ API key context7 cho mọi client | Chỉ trả tên/lệnh/trạng thái; `args` che giá trị bí mật (`_redact_args`) |
-| Status nhét README, prompts, commands… (≈93KB) vào mỗi lần poll | Settings chậm, dễ timeout | Tách sang `/api/settings/catalog`, gọi khi mở trang |
-| `mcp_servers` đổi từ dict sang list | HUD hiện "0,1,2" với chấm lỗi | Trả lại `{tên: trạng thái}` từ hub thật |
-| `/api/mcp/servers` dùng `_json` chưa import | Trang MCP lỗi | Sửa, trạng thái lấy từ hub thay vì cờ `enabled` |
-| UI gửi `SERVER_API_KEY`, `FISH_AUDIO_API_KEY` | Backend từ chối, báo "lỗi kết nối" | Đổi sang `LOCAL_API_KEY`, `TTS_LOCAL_KEY` |
-| Bản chuyển vào `settings/` bỏ sự kiện `jarvis:overlay` | Orb không tạm dừng | Phát lại sự kiện |
-| Giọng đọc gõ cứng 4 giọng Google, lưu sai API | Lưu giọng giả | Nạp `/api/tts/voices`, lưu qua `/api/tts/voice`, gắn nút clone |
-| CSS ép `display:flex` lên lưới Bộ nhớ, chữ IN HOA, chữ < 12px | Bố cục vỡ, font lệch | Sửa lưới, một họ font, tối thiểu 12px; gỡ 42 rule chết |
-| Command-bar gợi ý `/help`, `/clear`, skill, `/plugin` | Gõ vào đều "Không tìm thấy lệnh" | Chỉ gợi ý lệnh backend chạy được |
-| Thu nhỏ sidebar Settings: nhãn `display:none` + icon căn giữa ngay lập tức | Chữ/icon nhảy trong lúc co chiều rộng | Icon giữ nguyên toạ độ, nhãn mờ dần (`opacity`), không xuống dòng |
-| Dashboard lấy số phiên bản từ `.env` | Lệch với `VERSION` | Vite đọc file `VERSION` |
-
-**Mascot trên nút gửi** (`frontend/src/mascot.ts`) — port TypeScript thuần của [nilbuild/page-mascot](https://github.com/nilbuild/page-mascot) (MIT), không cần React (gói npm `page-mascot` không dùng tới, có thể gỡ).
-- **Vị trí:** đứng yên ngay trên `#cmd-send`, thân đè lên viền trên command-bar (lún 20px) để trông như ngồi trên thanh lệnh; bên trái vẫn là dòng trạng thái. Cỡ 56px (mobile 44px).
-- **Vùng bấm:** chỉ phần đầu nhận click; phần thân cho click xuyên qua nên nút gửi vẫn bấm bình thường.
-- **Tương tác:** đầu quay theo chuột (8 hướng), thỉnh thoảng chớp mắt; bấm để đổi biểu cảm (tim, lấp lánh, vui), bấm nhanh 4 lần = choáng.
-- **Theo trạng thái JARVIS** qua sự kiện `jarvis:mascot` (phát trong `transition()` và `showError()`): thinking nhìn lên, working lấp lánh, speaking vui, lỗi/restart choáng, idle 60 giây thì ngủ.
-- **Nhân vật:** sprite `frontend/public/mascots/<tên>-directions.webp` và `<tên>-reactions.webp` (lưới 3×3, nền trong suốt); đổi nhân vật bằng tham số `name` của `mountMascot` trong `main.ts`.
-- **Phục vụ file tĩnh:** `mount_frontend_dist` (`engine/UIUX/ui_engine.py`) phục vụ `/` và mọi thư mục trong `frontend/dist` (`assets/`, `mascots/`, …) — trước đây chỉ `/assets` nên ảnh mascot bị 404 trên app desktop.
-- **Test:** `frontend/e2e/mascot.cjs` (vị trí, không che nút gửi, hướng nhìn, biểu cảm, trạng thái, mobile) và `tests/test_frontend_static.py`.
-
-**Khung các bước (flow_tracker) và thẻ agent (flow_agents) thiết kế lại** — một font giao diện 12–12.5px cho cả hai (bỏ monospace), dấu trạng thái cùng cỡ.
-- **Khung các bước:** đầu khung = icon trạng thái + bước hiện tại + số đếm dạng viên `6/7` + thanh tiến độ mảnh; danh sách là dòng thời gian dọc (chấm xanh lá xong · xanh dương nhấp nháy đang chạy · xám chưa tới), bỏ số "1. 2. 3."; phần sau "→" thành chữ phụ mờ, bỏ "..." cuối nhãn.
-- **Thẻ agent:** icon lucide trong ô bo góc + tên + việc đang làm (bỏ tiền tố "Thực thi:"). Backend giữ nguyên `"<emoji> Agent <Tên>"` (Telegram vẫn dùng); frontend tách emoji và chọn icon theo tên trong `AGENT_ICON` (`frontend/src/icons.ts`). Agent mới trong `engine/agents` chưa có trong bảng vẫn hiện, với icon robot.
-- **Test:** `frontend/e2e/flow-ui.cjs` (WebSocket giả phát một lượt chạy).
-
-**Đồng hồ lật kiểu HTC Sense** (`frontend/src/clock.ts`) — mỗi chữ số một ô (`HH:MM`; dấu `:` là 2 chấm tròn phát "sóng radar" — vòng sáng xanh lan ra từ từng chấm luân phiên, chu kỳ 2 giây, đứng yên khi bật giảm chuyển động), không khung, chỉ còn đường cắt ngang giữa số; giữa phía trên màn hình chính, ngay dưới hàng nút.
-- **Hiệu ứng:** khi đổi số, nửa trên số cũ gập xuống rồi nửa dưới số mới rơi vào (2 × 0,3 giây). Chỉ chữ số vừa đổi mới lật (10:59→11:00 giữ nguyên số 1 đầu). Không có thẻ nền nên hai nửa tĩnh mờ dần ra/vào theo tấm lật, số cũ và mới không chồng lên nhau. Tắt khi máy bật giảm chuyển động.
-- **Lớp:** `z-index: 1`, chỉ nằm trên orb; HUD, chat, bản đồ, Settings đều đè lên được. `pointer-events: none` nên không chặn click.
-- **Font:** Oswald Light (300), nhúng vào bản build qua `@fontsource/oswald` (bộ latin) — app desktop chạy offline vẫn đúng font.
-- **Test:** `frontend/e2e/clock.cjs` (giờ giả bằng `page.clock`: hiện 10:59, lật sang 11:00, dọn tấm lật, vị trí, lớp, font, mobile).
-
-Thêm: sửa và lưu prompt (`POST /api/prompts/save`, chỉ ghi đè `prompt/*.md` có sẵn); Graphfy thành bản đồ luồng chạy thật. Test: `tests/test_settings_status_api.py`, `frontend/e2e/settings-dashboard.cjs`.
-
-### v9.9.5 — 2026-09-25
-
-**Gom prompt và learning tự phản tư.** Spec do Claude viết, một model khác lên plan và triển khai, rồi Claude review và sửa lại. Kết quả chạy thật: hiểu ngữ cảnh tốt hơn, phản hồi nhanh hơn, token giảm, dễ bảo trì.
-
-| Vấn đề phát hiện khi review | Hậu quả | Cách sửa |
-|---|---|---|
-| Lịch sử từ DB chỉ lấy `role` và `content` | Thẻ `<ask_user>` không bao giờ được dựng lại | Giữ thêm cột `ask_user`/`action_run`, có test trên DB tạm |
-| Lịch sử bỏ mọi lượt user trùng chữ | Mất lượt "ừ" cũ, ảnh hưởng cả gate | Chỉ gộp bản ghi trùng nằm liền nhau |
-| `unlearn_last_learning` xoá bài học mới nhất mỗi khi ngài phàn nàn route sai | Mất dữ liệu | Thay bằng `retract` có kiểm soát |
-| Prompt được chép sang `.md` nhưng code vẫn dùng chữ viết cứng | Sửa file `.md` không có tác dụng | Nối code vào file `.md`, kiểm bằng golden test |
-| `learning_workflow.md` có schema đầu ra khác prompt thật | Sẽ làm hỏng việc học workflow | Viết lại theo đúng prompt đang chạy |
-| Test learning ghi vào `data/` thật | Để lại rác trong `Evolution.md` | Test chạy trên thư mục tạm, script dọn gỡ rác |
-| Sampling được đổi sau khi đo trên bố cục cũ | Đo lại 10 lần mỗi kịch bản, cấu hình mới tệ hơn | Giữ `0.4 / 0.8 / 40` |
-| Script dọn sửa `STYLE.md` trước khi sao lưu, và model kia tự chạy `--apply` | Bản sao lưu thiếu `skills/self_evolution/` | Sao lưu trước mọi thay đổi |
-
-**Sửa thêm sau khi chạy thật:**
-- **Media phát nhầm video**: từ đệm "tôi muốn … của" kéo một video re-up lên đầu danh sách. Đã bỏ từ đệm trước khi xếp hạng. Bảng kết quả chép nguyên từ tool và nói đúng bài đang phát.
-- **Classifier**: tên có gạch nối như "M-TP" được tính là một từ, nên câu rút gọn được nhận.
-- **Chat bịa kết quả kiểm tra bảo mật** khi không có tool nào chạy: thêm `<tool_status>` cho mọi lượt chat. Đo lại: bịa 8/10 → 0/10, đề nghị đúng giao thức 10/10. Lượt từ chối không còn nói "đã mở rồi" (1/10). Đã gỡ các dữ liệu bịa khỏi DB và nhật ký wiki, có sao lưu trong `data/backups/`.
-
-**Bài học khi giao việc cho model khác:**
-- Test phải chạy qua đường code thật, không chỉ gọi hàm với dữ liệu giả.
-- Test không được đụng `data/` thật.
-- Thao tác `--apply` trên dữ liệu thật do người dùng tự chạy.
-- Chỉ đo live trên đúng bố cục đang chạy, với đủ số lần chạy.
-- Sửa prompt thì phải chứng minh nó giống từng byte với bản cũ, hoặc nói rõ là đã đổi.
-
-## Kho tài liệu (`@rag`)
-
-Tài liệu lưu vào kho được tìm lại bằng lệnh tường minh. Router bắt tiền tố `@rag` bằng regex, không qua LLM, nên không nhầm với câu chat hay lệnh khác.
-
-- `@rag <câu hỏi>` — tìm trong kho (dense + BM25 + RRF + rerank), bỏ đoạn có `hybrid_score` < `RAG_MIN_SCORE` (mặc định `0.2`), LLM trả lời chỉ từ bằng chứng, kèm nguồn (tên tệp, trang). Nếu đang đính kèm tệp: hỏi về chính tệp đó.
-- `@rag lưu` + đính kèm tệp — lưu vào kho lâu dài. Không có tệp thì "lưu…" được hiểu là câu hỏi.
-- `@rag danh sách` — tài liệu trong kho và mã.
-- `@rag xóa <mã>` — xóa khỏi kho. Chỉ nhận đúng một mã; `xóa` kèm nhiều từ được hiểu là câu hỏi.
-- `@rag` — trợ giúp.
-
-Tệp thả vào `data/documents/` (hoặc `RAG_WATCH_FOLDER`) cũng được watcher tự index vào cùng kho. Đổi model embedding thì phải index lại: vector của hai model không so được với nhau, và khác số chiều sẽ bị từ chối.
-
-## Tìm việc (`@jobs`)
-
-JARVIS phỏng vấn ngài để tạo hồ sơ + CV PDF tiếng Việt, tự tìm tin tuyển dụng **có email nhận CV** mỗi sáng (sau 08:00), soạn thư xin việc, và chỉ gửi qua Gmail khi ngài duyệt.
-
-Cấu hình Gmail (một lần): bật Xác minh 2 bước, tạo "Mật khẩu ứng dụng" tại `myaccount.google.com/apppasswords`, rồi tự thêm vào `.env`:
-
-    GMAIL_ADDRESS=ban@gmail.com
-    GMAIL_APP_PASSWORD=xxxxxxxxxxxxxxxx
-
-Lệnh (giao diện hoặc Telegram):
-- `@jobs phỏng vấn` / `@jobs tiếp tục` / `@jobs sửa hồ sơ`
-- `@jobs tìm` — tìm ngay; `@jobs tin <nội dung hoặc link>` — đánh giá một tin
-- Duyệt: `gửi 1, 3`, `bỏ 2`, `sửa thư 1: <ý muốn>` (danh sách hết hạn sau 3 ngày, tối đa 10 thư/ngày)
-- `@jobs trạng thái`
-
-Dữ liệu nằm trong `data/jobs/` (hồ sơ, CV, danh sách chờ, nhật ký đã gửi). Không nộp trên trang cần đăng nhập (TopCV, vLance, LinkedIn); không viết CV tiếng Anh; tin yêu cầu tiếng Anh cao hơn trình độ trong hồ sơ bị bỏ qua.
+Toàn bộ lịch sử thay đổi và quy tắc đánh số phiên bản nằm ở [CHANGELOG.md](CHANGELOG.md). Số phiên bản hiện tại: file [`VERSION`](VERSION).
 
 ---
 
 ## 📜 Giấy Phép & Tuyên Bố Miễn Trừ
 
-Phiên bản **JARVIS v9.9.5** là phiên bản phát triển cá nhân hóa dành cho **erikpuw**.
+Đây là bản phát triển cá nhân hóa dành cho **erikpuw**.
 
 Dự án gốc bởi [Ethan](https://ethanplus.ai).
 
