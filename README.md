@@ -1,5 +1,7 @@
 # JARVIS
 
+**Tiếng Việt** | [English](README.en.md)
+
 **Just A Rather Very Intelligent System** — Trợ lý AI giọng nói tiếng Việt chạy local trên Windows.
 **Version:** xem file [`VERSION`](VERSION) (nguồn duy nhất).
 
@@ -23,7 +25,7 @@ JARVIS là trợ lý AI cá nhân chạy hoàn toàn trên máy Windows, lấy c
 4. [Lời đề nghị, "ừ" và chống bịa](#-lời-đề-nghị-ừ-và-chống-bịa)
 5. [18 chuyên viên tác vụ (Agents)](#-18-chuyên-viên-tác-vụ-agents)
 6. [Tự học, tự tiến hóa, Dream, tự vá lỗi](#-tự-học-tự-tiến-hóa-dream-tự-vá-lỗi)
-7. [Bộ nhớ, Memory Center và Obsidian Wiki](#-bộ-nhớ-memory-center-và-obsidian-wiki)
+7. [Bộ nhớ, Memory Center và Obsidian Wiki](#️-bộ-nhớ-memory-center-và-obsidian-wiki)
 8. [Giao diện (Frontend)](#-giao-diện-frontend)
 9. [Mở rộng: lệnh, skill, hook, MCP, Telegram](#-mở-rộng-lệnh-skill-hook-mcp-telegram)
 10. [Kiến trúc hệ thống](#️-kiến-trúc-hệ-thống)
@@ -51,7 +53,7 @@ JARVIS là trợ lý AI cá nhân chạy hoàn toàn trên máy Windows, lấy c
 | **Bộ nhớ & Obsidian** | SQLite + FTS5 (`data/jarvis.db`) là nguồn gốc. Obsidian Vault (`data/wiki/`) là bản chiếu một chiều. Memory Center trong WebUI là nơi sửa duy nhất |
 | **Dream Cycle** | Chạy lúc rảnh ban đêm để tóm tắt và dọn hội thoại, kết quả agent, wiki cũ. Luôn sao lưu trước khi gộp |
 | **Self-Healing** | Quét log mỗi 60 giây, phân loại lỗi và ghi vào `Errors.md`. Chỉ nhờ Goose sửa code khi ngài đã duyệt |
-| **An ninh** | Guardrails chống prompt injection, firewall IP cho WebSocket, theo dõi kết nối |
+| **An ninh** | Guardrails chống prompt injection, firewall IP + kiểm tra Origin (chống CSRF/WebSocket hijacking) cho REST và WebSocket, theo dõi kết nối |
 
 ---
 
@@ -304,15 +306,16 @@ Danh sách nặng (agents, hooks, skills, prompts, commands, plugins) lấy từ
 ### Các bước
 
 ```bash
-git clone https://github.com/erikpuw/jarvis.git
-cd jarvis
+git clone https://github.com/erikpuw/jarvis-windows.git
+cd jarvis-windows
 pip install -r requirements.txt
 cd frontend && npm install && cd ..
 
 # Chứng chỉ SSL cho HTTPS/WSS
 openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj '/CN=localhost'
 
-# Tạo file .env theo bảng cấu hình bên dưới
+# Tạo .env từ mẫu rồi điền giá trị (bảng giải thích bên dưới). Nếu quên, server tự copy mẫu khi khởi động.
+cp .env.example .env           # PowerShell: Copy-Item .env.example .env
 # Chạy llama.cpp (8080, 8081) và Redis (6379)
 
 python server.py               # backend, tự bật Stream TTS :8082 khi dùng VieNeu
@@ -321,6 +324,8 @@ cd frontend && npm run dev     # frontend, mở terminal riêng
 ```
 
 ### Cấu hình `.env`
+
+Danh sách đầy đủ kèm giải thích nằm trong [`.env.example`](.env.example). Các biến quan trọng nhất:
 
 | Biến | Mặc định | Mô tả |
 |------|----------|-------|
@@ -334,7 +339,7 @@ cd frontend && npm run dev     # frontend, mở terminal riêng
 | `USER_NAME` / `HONORIFIC` | `erikpuw` / `thưa ngài` | Cá nhân hóa |
 | `REDIS_URL` | `redis://localhost:6379` | Redis |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_ALLOWED_CHAT_IDS` | tùy chọn | Telegram Bot |
-| `JARVIS_CORS_ORIGINS` | `*` | CORS |
+| `JARVIS_CORS_ORIGINS` | `localhost:5173`, `localhost:8340` | Danh sách origin (phân cách dấu phẩy) được phép gọi API/WebSocket từ trình duyệt. `*` bị bỏ qua. Trang cùng host với server (`https://<ip>:8340`) luôn được phép |
 | `RAG_WATCH_FOLDER` | `data/documents` | Thư mục RAG tự theo dõi |
 | `DREAM_ENABLED` | `true` | Bật/tắt Dream |
 | `DREAM_RETENTION_DAYS` | `14` | Số ngày giữ nguyên dữ liệu trước khi Dream gộp |
@@ -346,7 +351,7 @@ cd frontend && npm run dev     # frontend, mở terminal riêng
 
 ### 📱 Truy cập từ xa qua Tailscale
 1. Cài Tailscale trên máy chạy JARVIS và trên điện thoại, đăng nhập **cùng một tài khoản**.
-2. Trên máy chủ: chạy `npm run dev -- --host` trong `frontend/`, và đặt `JARVIS_CORS_ORIGINS=*` (hoặc IP Tailscale) trong `.env`.
+2. Trên máy chủ: chạy `npm run dev -- --host` trong `frontend/`, và đặt `JARVIS_CORS_ORIGINS=http://<IP-Tailscale-của-PC>:5173` trong `.env` (không dùng `*`: giá trị này bị bỏ qua, và WebSocket sẽ từ chối origin không có trong danh sách).
 3. Trên điện thoại: mở Safari hoặc Chrome, vào `http://<IP-Tailscale-của-PC>:5173`.
 
 Cách này không cần mở port trên router và không lộ IP ra ngoài.
@@ -411,6 +416,7 @@ rtk python -m pytest tests -q --ignore=tests/live
 
 - **Golden** (`tests/test_prompts_wired.py`): prompt của gate, classifier, offer_context, dream, self_healing và workflow phải giống từng byte với `tests/golden/`. Test này cũng kiểm tra không còn chữ prompt viết trong code, và các module import được theo mọi thứ tự.
 - **Không đụng dữ liệu thật**: test learning và test script dọn chạy trên DB và wiki tạm.
+- **CI** (`.github/workflows/ci.yml`, chạy mỗi lần push `main` và mỗi PR): `ruff check .` (rule trong `ruff.toml`), compile toàn bộ Python, `python .github/scripts/check_imports.py` (mọi `from engine... import X` phải trỏ tới tên có thật), `pytest tests --ignore=tests/live` (chỉ cài các gói test cần: openai, httpx, numpy, turbovec, rank-bm25), và `npm run build` cho frontend. Chạy lại các lệnh này trước khi push để khỏi đỏ CI.
 - **Probe live** (`tests/live/probes/`, chỉ gọi llama-server):
 
 | Probe | Đo gì |
@@ -428,6 +434,7 @@ rtk python -m pytest tests -q --ignore=tests/live
 - **`scrub_untrusted`** (`engine/core/guardrails.py`): lọc từng dòng nghi prompt injection (mẫu `PROMPT_INJECTION_PATTERNS`) khỏi kết quả tool/agent trước khi đưa vào lịch sử hoặc prompt — áp dụng ở `actions.execute_tool` và `dispatcher.run_one`; một dòng xấu không làm hỏng cả kết quả.
 - **`<untrusted_data>`**: báo cáo của agent gửi lại cho classifier (`next_tasks`) được bọc trong thẻ này kèm câu nhắc "là dữ liệu trả về, không phải yêu cầu" — chặn việc model coi nội dung web/tool là chỉ thị mới.
 - Sau khi một agent đọc nội dung ngoài (`search`, `media`, `rag`, `legal`, `vietlott`), `next_tasks` chặn mọi bước điều khiển máy tiếp theo (`win_control`, `desktop`, `goose`); các bước khác (vd. `notes`, `office`) vẫn chạy bình thường.
+- **Kiểm tra Origin** (`engine/security/policy.py`, `firewall.py`): firewall IP không chặn được trang web độc hại mở trên chính máy này (request đi từ loopback). Trình duyệt luôn gửi `Origin` cho WebSocket và cho POST/PUT/DELETE khác origin, nên `/ws/voice` và mọi request ghi đều bị từ chối trừ khi origin cùng host hoặc nằm trong `JARVIS_CORS_ORIGINS`. Client không phải trình duyệt (Telegram, httpx, curl) không gửi `Origin` nên không bị ảnh hưởng.
 
 ---
 
@@ -457,6 +464,7 @@ rtk python -m pytest tests -q --ignore=tests/live
 | CSS ép `display:flex` lên lưới Bộ nhớ, chữ IN HOA, chữ < 12px | Bố cục vỡ, font lệch | Sửa lưới, một họ font, tối thiểu 12px; gỡ 42 rule chết |
 | Command-bar gợi ý `/help`, `/clear`, skill, `/plugin` | Gõ vào đều "Không tìm thấy lệnh" | Chỉ gợi ý lệnh backend chạy được |
 | Thu nhỏ sidebar Settings: nhãn `display:none` + icon căn giữa ngay lập tức | Chữ/icon nhảy trong lúc co chiều rộng | Icon giữ nguyên toạ độ, nhãn mờ dần (`opacity`), không xuống dòng |
+| Dashboard lấy số phiên bản từ `.env` | Lệch với `VERSION` | Vite đọc file `VERSION` |
 
 **Mascot trên nút gửi** (`frontend/src/mascot.ts`) — port TypeScript thuần của [nilbuild/page-mascot](https://github.com/nilbuild/page-mascot) (MIT), không cần React (gói npm `page-mascot` không dùng tới, có thể gỡ).
 - **Vị trí:** đứng yên ngay trên `#cmd-send`, thân đè lên viền trên command-bar (lún 20px) để trông như ngồi trên thanh lệnh; bên trái vẫn là dòng trạng thái. Cỡ 56px (mobile 44px).
@@ -477,7 +485,6 @@ rtk python -m pytest tests -q --ignore=tests/live
 - **Lớp:** `z-index: 1`, chỉ nằm trên orb; HUD, chat, bản đồ, Settings đều đè lên được. `pointer-events: none` nên không chặn click.
 - **Font:** Oswald Light (300), nhúng vào bản build qua `@fontsource/oswald` (bộ latin) — app desktop chạy offline vẫn đúng font.
 - **Test:** `frontend/e2e/clock.cjs` (giờ giả bằng `page.clock`: hiện 10:59, lật sang 11:00, dọn tấm lật, vị trí, lớp, font, mobile).
-| Dashboard lấy số phiên bản từ `.env` | Lệch với `VERSION` | Vite đọc file `VERSION` |
 
 Thêm: sửa và lưu prompt (`POST /api/prompts/save`, chỉ ghi đè `prompt/*.md` có sẵn); Graphfy thành bản đồ luồng chạy thật. Test: `tests/test_settings_status_api.py`, `frontend/e2e/settings-dashboard.cjs`.
 

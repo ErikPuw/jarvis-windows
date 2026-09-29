@@ -427,17 +427,7 @@ async def run_goose_repair_loop(
         from datetime import datetime
         
         status_str = "BẢN VÁ ĐÃ XÁC MINH - CẦN KIỂM TRA RUNTIME SAU RELOAD" if success else "THẤT BẠI"
-        record_content = (
-            f"[Bị động - Goose CLI Tiến hóa & Sửa lỗi]\n"
-            f"Trạng thái: {status_str}\n"
-            f"Tệp sửa đổi: {os.path.abspath(file_path)}\n"
-            f"Lỗi ban đầu: {error_message}\n"
-            f"Phản hồi từ Goose CLI:\n{latest_output}"
-        )
-        
-        # 1. Lưu vào SQLite
-        
-        # 2. Lưu vào LEARNINGS.md
+        # Lưu vào LEARNINGS.md
         learnings_dir = PROJECT_ROOT / ".learnings"
         learnings_dir.mkdir(parents=True, exist_ok=True)
         md_file = learnings_dir / "LEARNINGS.md"

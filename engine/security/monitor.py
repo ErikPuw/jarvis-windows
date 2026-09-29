@@ -6,7 +6,6 @@ Periodically scans active socket connections of JARVIS server ports to detect in
 import asyncio
 import logging
 import os
-import socket
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -66,10 +65,10 @@ async def monitor_network_loop(get_ws_session: Callable[[], Optional[any]], serv
                         ws = get_ws_session()
                         if ws:
                             from server import safe_ws_send_json
-                            asyncio.create_task(safe_ws_send_json(ws, {
+                            await safe_ws_send_json(ws, {
                                 "type": "text_chunk",
                                 "text": f"[CẢNH BÁO BẢO MẬT]: Phát hiện kết nối trái phép từ địa chỉ IP {ip}."
-                            }))
+                            })
                             
                 else:
                     # Nếu IP đã an toàn hoặc đã ngắt kết nối thì có thể xóa khỏi danh sách đã cảnh báo sau này
@@ -91,11 +90,9 @@ def start_security_monitor(get_ws_session: Callable[[], Optional[any]], server_p
 
 def run_security_check() -> str:
     """Đọc cấu hình bảo mật, log xâm nhập và giám sát trạng thái kết nối mạng active."""
-    from pathlib import Path
     from engine.security.policy import parse_cors_origins
     
     local_only = os.getenv("JARVIS_SECURITY_LOCAL_ONLY", "true").lower() == "true"
-    lan_open = os.getenv("JARVIS_SECURITY_LAN_OPEN", "true").lower() == "true"
     allowed_ips = os.getenv("JARVIS_SECURITY_ALLOWED_IPS", "")
     cors_origins = parse_cors_origins(os.getenv("JARVIS_CORS_ORIGINS", ""))
     upload_limit_raw = os.getenv("JARVIS_UPLOAD_MAX_BYTES", str(25 * 1024 * 1024))

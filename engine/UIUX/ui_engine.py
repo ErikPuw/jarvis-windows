@@ -1,14 +1,12 @@
 import os
-import sys
 import time
 import asyncio
 import logging
 import base64
-import signal
 import json
 import re
 from pathlib import Path
-from typing import Optional, Any, Literal
+from typing import Any, Literal
 from fastapi import APIRouter, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse, FileResponse
 from engine.security.policy import UploadTooLarge, read_limited, resolve_file_under
@@ -32,6 +30,7 @@ def mount_frontend_dist(app, dist: Path) -> None:
 log = logging.getLogger("jarvis.ui_engine")
 
 router = APIRouter()
+_pending_tasks: set[asyncio.Task] = set()
 
 # ---------------------------------------------------------------------------
 # Pydantic Models
@@ -76,7 +75,6 @@ async def health_detailed():
     import os
     import time
     import httpx
-    from pathlib import Path
     
     # 1. LLM (llama.cpp) Status
     llm_url = os.getenv("LOCAL_URL", "").strip()
@@ -786,13 +784,12 @@ def _mcp_server_views(hub_status: dict) -> list[dict]:
 @router.get("/api/settings/status")
 async def api_settings_status(apps: bool = False):
     import server
-    import shutil as _shutil
     await asyncio.to_thread(server._update_session_tokens_from_log)
     _, env_dict = server._read_env()
-    l_key = env_dict.get("LOCAL_API_KEY").strip()
-    l_url = env_dict.get("LOCAL_URL").strip()
+    l_key = (env_dict.get("LOCAL_API_KEY") or "").strip()
+    l_url = (env_dict.get("LOCAL_URL") or "").strip()
     llm_ok = bool(l_key) and bool(l_url)
-    tts_ok = bool(env_dict.get("TTS_LOCAL_URL").strip())
+    tts_ok = bool((env_dict.get("TTS_LOCAL_URL") or "").strip())
     
     memory_count = 0
     try:
@@ -1209,7 +1206,10 @@ async def api_restart(request: Request):
             log.error("Restart requested but Uvicorn server instance is unavailable")
             return
         uvicorn_server.should_exit = True
-    asyncio.create_task(_restart())
+    # Giữ tham chiếu: event loop chỉ giữ weak-ref tới task, task trần có thể bị GC trước khi chạy.
+    task = asyncio.create_task(_restart())
+    _pending_tasks.add(task)
+    task.add_done_callback(_pending_tasks.discard)
     return {"status": "restarting"}
 
 

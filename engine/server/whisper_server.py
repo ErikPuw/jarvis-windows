@@ -2,7 +2,6 @@ import logging
 import os
 import tempfile
 import asyncio
-from typing import Optional
 
 log = logging.getLogger("jarvis.whisper_server")
 

@@ -10,7 +10,7 @@ import logging
 import sqlite3
 import time
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Optional
 
 log = logging.getLogger("jarvis.rag_watcher")
 

@@ -6,11 +6,8 @@ Supports Python (.py) and Node modules (.js/.ts).
 For JS/TS, loader executes optional exported setup() via Node bridge.
 """
 
-import asyncio
 import importlib
-import json
 import logging
-import subprocess
 import sys
 import threading
 import traceback

@@ -5,10 +5,9 @@ JARVIS Note Engine - Ghi chú cá nhân và Knowledge Base được đồng bộ
 import time
 import logging
 import re
-import os
 import unicodedata
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional
 
 log = logging.getLogger("jarvis.note_engine")
 
@@ -369,7 +368,7 @@ async def execute_note_action(arguments: dict, conversation_history: list = None
         title = arguments.get("title", "").strip()
         tags = arguments.get("tags", "").strip()
         
-        content_lower = content.lower()
+        content.lower()
         
         if is_save_intent:
             if prev_results:

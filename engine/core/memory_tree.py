@@ -67,7 +67,7 @@ def save_daily_digest(
         with open(daily_file, "a", encoding="utf-8") as f:
             if not file_exists:
                 f.write(f"# Nhật ký hoạt động ngày {today_str}\n")
-                f.write(f"Tags: #daily #activity\n\n")
+                f.write("Tags: #daily #activity\n\n")
                 daily_nav = []
                 if daily_note_path(yesterday.strftime("%Y-%m-%d")).exists():
                     daily_nav.append(f"← [[{yesterday_link}|Ngày hôm trước]]")

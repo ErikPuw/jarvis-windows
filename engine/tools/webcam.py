@@ -3,7 +3,6 @@ import logging
 import base64
 import os
 import urllib.request
-from typing import Optional
 
 log = logging.getLogger("jarvis.webcam")
 

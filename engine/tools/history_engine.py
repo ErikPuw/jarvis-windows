@@ -5,6 +5,7 @@ JARVIS History Engine - Truy vấn lịch sử hội thoại từ DB + Obsidian 
 import logging
 import re
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional
 
 log = logging.getLogger("jarvis.history_engine")

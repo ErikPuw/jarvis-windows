@@ -16,7 +16,6 @@ import re
 import sqlite3
 import time
 import threading
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Any, Callable
 
@@ -1033,7 +1032,7 @@ class SemanticMemoryEngine:
                             "score": float(score)
                         })
         if results:
-            log.info(f"🔮 Semantic recall")
+            log.info("🔮 Semantic recall")
         return results
 
 

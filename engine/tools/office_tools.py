@@ -153,7 +153,6 @@ def _normalize_batch_json(code_str: str) -> str:
         if not isinstance(data, list):
             return code_str
         
-        modified = False
         normalized_list = []
         for item in data:
             if not isinstance(item, dict):
@@ -167,7 +166,6 @@ def _normalize_batch_json(code_str: str) -> str:
 
             # Nếu LLM lỡ tạo trường 'prop' thay vì 'props'
             if "prop" in new_item:
-                modified = True
                 val = new_item.pop("prop")
                 if isinstance(val, dict):
                     props.update(val)

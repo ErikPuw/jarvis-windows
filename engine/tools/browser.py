@@ -134,7 +134,7 @@ class JarvisScraplingBrowser:
         max_results: int = 10,
     ) -> list[SearchResult]:
         """Search DuckDuckGo and return top results (HTTP, no browser)."""
-        fetch_n = max(10, min(max_results, 30))
+        max(10, min(max_results, 30))
         url = f"https://html.duckduckgo.com/html/?q={quote(query)}"
         if locale:
             url += f"&kl={quote(locale)}"

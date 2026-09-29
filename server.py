@@ -21,7 +21,6 @@ if _env_path.exists():
             os.environ[_k.strip()] = _v.strip().strip('"').strip("'")
 
 import asyncio
-import sys
 import base64
 import json
 import logging
@@ -33,17 +32,14 @@ from typing import Optional, Any
 
 from openai import AsyncOpenAI, OpenAI
 import httpx
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 # Reconnected core and tools modules
 from engine.core.memory import (
-    save_memory,
-    save_message, SemanticMemoryEngine,
+    SemanticMemoryEngine,
 )
-from engine.tools.screen import describe_screen, format_windows_for_context, get_active_windows
 from engine.main.greeting_engine import send_greeting
 
 LOG_DIR = Path(__file__).parent / "logs"
@@ -218,9 +214,6 @@ def apply_speech_corrections(text: str) -> str:
         result = _stt_re.sub(pattern, replacement, result, flags=_stt_re.IGNORECASE)
     return result
 
-from engine.server.tts_engine import (
-    num_to_vietnamese_words,
-)
 
 # ---------------------------------------------------------------------------
 # WebSocket Safe Send Helper
@@ -869,10 +862,14 @@ async def voice_handler(ws: WebSocket):
     client_host = ws.client.host if ws.client else None
     device_type = ws.query_params.get("device", "desktop")
     ws.device_type = device_type
-    from engine.security.firewall import is_ip_allowed
+    from engine.security.firewall import is_ip_allowed, is_request_origin_allowed
     if not is_ip_allowed(client_host):
         log.warning(f"Blocked unauthorized WebSocket connection attempt from IP: {client_host}")
         await ws.close(code=1008) # Policy Violation
+        return
+    if not is_request_origin_allowed(ws.headers):
+        log.warning(f"Blocked cross-origin WebSocket from Origin: {ws.headers.get('origin')}")
+        await ws.close(code=1008)
         return
 
     await ws.accept()
@@ -955,7 +952,6 @@ async def voice_handler(ws: WebSocket):
 
         # Chạy greeting ở background, hủy nếu user nói trước
         greeting_task: Optional[asyncio.Task] = None
-        greeting_processed = False
 
         async def _run_greeting():
             try:
@@ -1076,7 +1072,7 @@ async def voice_handler(ws: WebSocket):
                     selected_url = val[0] if isinstance(val, list) and val else val
                     log.info(f"Auto-resolving and playing selected episode URL: {selected_url}")
                     
-                    async def _play_selected_episode():
+                    async def _play_selected_episode(selected_url=selected_url):
                         from engine.tools.media_search import pw_fetch, pw_close, pw_scrape_iframe
                         page = browser = pw = None
                         try:
@@ -1097,7 +1093,9 @@ async def voice_handler(ws: WebSocket):
                             if browser is not None:
                                 await pw_close(page, browser, pw)
                     
-                    asyncio.create_task(_play_selected_episode())
+                    _play_task = asyncio.create_task(_play_selected_episode())
+                    _background_tasks.add(_play_task)
+                    _play_task.add_done_callback(_background_tasks.discard)
 
                 # Auto-play video Youtube khi nhận được phản hồi chọn video từ Frontend
                 if "youtube_select_" in card_id and action == "submit" and val:

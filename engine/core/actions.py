@@ -11,7 +11,7 @@ from engine.core.json_parser import safe_json_loads
 from engine.core.command_registry import KNOWN_TOOL_NAMES, TOOL_REGISTRY
 
 from engine.server.llm_server import call_llm, get_llm_client
-from engine.tools.search_engine import handle_market_query, handle_news_search
+from engine.tools.search_engine import handle_news_search
 from engine.tools.screen import describe_screen
 from engine.tools.desktop_automation import open_application, close_application
 from engine.tools.webcam import webcam_analyze
@@ -219,7 +219,7 @@ async def _execute_tool_inner(name: str, arguments: dict, ws=None, safe_ws_send_
                 importance = int(parsed_args.get("importance", 5))
                 if not content:
                     return "Lỗi: Thiếu nội dung để ghi nhớ."
-                mem_id = await asyncio.to_thread(save_memory, content, mem_type, source, importance)
+                await asyncio.to_thread(save_memory, content, mem_type, source, importance)
                 if ws and safe_ws_send_json:
                     await safe_ws_send_json(ws, {"type": "memory_updated"})
                 return f"Đã ghi nhớ: {content[:80]}"
@@ -600,7 +600,6 @@ async def handle_user_intent_with_tools(user_text: str, add_tools: str, conversa
         elif name in direct_tools:
             active_direct_tools.append(name)
 
-    skip_v1 = False
     results_text = ""
 
     try:
@@ -635,7 +634,6 @@ async def handle_user_intent_with_tools(user_text: str, add_tools: str, conversa
                 if isinstance(tool_result, dict):
                     tool_result = tool_result.get("text", json.dumps(tool_result))
                 results_text = f"Kết quả công cụ cap_screen:\n{tool_result}"
-                skip_v1 = True
             else:
                 import inspect
 
@@ -775,7 +773,7 @@ async def handle_user_intent_with_tools(user_text: str, add_tools: str, conversa
                 weather_sanitizer = sanitize_weather_display_text
 
             streamer = VoiceStreamer(ws)
-            worker_task = streamer.start()
+            streamer.start()
             # Cùng bộ cắt câu với luồng chat chính: không tách ở dấu chấm trong tên file
             # (context_manager.py). raw=True để giữ khoảng trắng khi ghép lại phần hiển thị.
             splitter = SentenceSplitter(raw=True)
@@ -796,31 +794,36 @@ async def handle_user_intent_with_tools(user_text: str, add_tools: str, conversa
                 if sentence:
                     await streamer.put(sentence)
 
-            async for chunk in stream:
-                if getattr(ws, "cancel_requested", False):
-                    log.info("Response generation (vòng 2) cancelled by client request")
-                    break
-                if not chunk.choices:
-                    continue
-                delta = chunk.choices[0].delta.content or ""
-                if delta:
-                    if weather_sanitizer is None:
-                        final_content += delta
-                        await stream_chunk_smoothly(ws, safe_ws_send_json, delta, char_delay=0.005)
-                    cancelled_mid_split = False
-                    for segment in splitter.push(delta):
-                        if getattr(ws, "cancel_requested", False):
-                            cancelled_mid_split = True
-                            break
-                        await emit_segment(segment)
-                    if cancelled_mid_split:
+            try:
+                async for chunk in stream:
+                    if getattr(ws, "cancel_requested", False):
+                        log.info("Response generation (vòng 2) cancelled by client request")
                         break
+                    if not chunk.choices:
+                        continue
+                    delta = chunk.choices[0].delta.content or ""
+                    if delta:
+                        if weather_sanitizer is None:
+                            final_content += delta
+                            await stream_chunk_smoothly(ws, safe_ws_send_json, delta, char_delay=0.005)
+                        cancelled_mid_split = False
+                        for segment in splitter.push(delta):
+                            if getattr(ws, "cancel_requested", False):
+                                cancelled_mid_split = True
+                                break
+                            await emit_segment(segment)
+                        if cancelled_mid_split:
+                            break
 
-            if getattr(ws, "cancel_requested", False):
+                if getattr(ws, "cancel_requested", False):
+                    await streamer.stop(clear_queue=True)
+                else:
+                    for segment in splitter.flush():
+                        await emit_segment(segment)
+            except Exception:
+                # Stream đứt giữa chừng: dừng worker TTS trước khi ném lỗi lên, tránh treo task + UI kẹt "speaking".
                 await streamer.stop(clear_queue=True)
-            else:
-                for segment in splitter.flush():
-                    await emit_segment(segment)
+                raise
 
             await streamer.stop(clear_queue=False)
 
