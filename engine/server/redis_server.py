@@ -1,9 +1,7 @@
 import asyncio
-import json
 import logging
 import os
 import subprocess
-from datetime import datetime
 from typing import Optional
 
 import redis.asyncio as aioredis
@@ -12,8 +10,6 @@ log = logging.getLogger("jarvis.redis")
 
 redis_client: Optional[aioredis.Redis] = None
 _redis_process: Optional[subprocess.Popen] = None
-QUEUE_NAME = "jarvis:tasks"
-JOB_RESULTS_PREFIX = "jarvis:job:"
 
 
 _CLI_CANDIDATES = ["redis-cli", "memurai-cli"]
@@ -87,42 +83,6 @@ async def connect_redis() -> bool:
             log.error("Redis connection failed on all attempts: %s", e2)
             redis_client = None
             return False
-
-
-async def push_task(prompt: str, working_dir: str = ".", project_name: str = "") -> Optional[str]:
-    """Push a task to the Redis job queue. Returns job_id or None."""
-    if not redis_client:
-        log.warning("Cannot push task: Redis not connected")
-        return None
-    import uuid
-    job_id = str(uuid.uuid4())[:8]
-    payload = json.dumps({
-        "job_id": job_id,
-        "prompt": prompt,
-        "working_dir": working_dir,
-        "project_name": project_name or working_dir.split("\\")[-1],
-        "created_at": datetime.now().isoformat(),
-    })
-    try:
-        await redis_client.rpush(QUEUE_NAME, payload)
-        log.info("Pushed task %s to Redis queue: %s", job_id, prompt[:60])
-        return job_id
-    except Exception as e:
-        log.warning("Failed to push Redis task: %s", e)
-        return None
-
-
-async def get_job_result(job_id: str) -> Optional[dict]:
-    """Retrieve a completed job result from Redis."""
-    if not redis_client:
-        return None
-    try:
-        data = await redis_client.get(f"{JOB_RESULTS_PREFIX}{job_id}")
-        if data:
-            return json.loads(data)
-    except Exception:
-        pass
-    return None
 
 
 async def worker_loop():

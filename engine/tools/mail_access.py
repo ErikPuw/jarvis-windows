@@ -19,7 +19,6 @@ _OUTLOOK_APP_ID = (
 )
 _OUTLOOK_PROCESSES = {"olk", "outlookforwindows"}
 _FILTER_AUTOMATION_ID = "mailListFilterMenu"
-_UNREAD_FILTER_NAMES = {"chưa đọc", "unread"}
 _ALL_FILTER_BUTTON_NAMES = {"bộ lọc", "filter"}
 _CLEAR_FILTER_NAMES = {"xóa bộ lọc", "clear filter"}
 _CALENDAR_NAVIGATION_ID = "8cbeb86f-83e1-43b5-aaba-cd3514322f0b"
@@ -198,22 +197,6 @@ class NewOutlookAutomation:
             if str(control.automation_id() or "") == _FILTER_AUTOMATION_ID
         ]
 
-    def _visible_unread_menu_items(self) -> list[Any]:
-        matches = []
-        for top_window in self._desktop.windows(visible_only=True):
-            for control in [top_window, *top_window.descendants()]:
-                control_type = str(
-                    control.element_info.control_type or ""
-                )
-                name = str(
-                    control.window_text() or ""
-                ).strip().casefold()
-                if (
-                    control_type == "RadioButton"
-                    and name in _UNREAD_FILTER_NAMES
-                ):
-                    matches.append(control)
-        return matches
 
     def find_mail_window(self) -> Any:
         matches = []
@@ -478,39 +461,6 @@ class NewOutlookAutomation:
             self._sleep(0.1)
         raise RuntimeError("Outlook all-mail filter was not verified")
 
-    def select_unread_filter(self, window: Any) -> None:
-        buttons = self._filter_buttons(window)
-        if len(buttons) != 1:
-            raise LookupError(
-                f"Expected one Outlook filter button, got {len(buttons)}"
-            )
-        button = buttons[0]
-        if str(button.window_text() or "").strip().casefold() in (
-            _UNREAD_FILTER_NAMES
-        ):
-            return
-
-        button.click_input()
-        self._sleep(0.5)
-        unread_items = self._visible_unread_menu_items()
-        if len(unread_items) == 1:
-            unread_items[0].select()
-        else:
-            send_keys = self._send_keys
-            if send_keys is None:
-                from pywinauto.keyboard import send_keys
-            send_keys("{HOME}{DOWN}{ENTER}")
-        for _attempt in range(100):
-            current_buttons = self._filter_buttons(window)
-            if (
-                len(current_buttons) == 1
-                and str(
-                    current_buttons[0].window_text() or ""
-                ).strip().casefold() in _UNREAD_FILTER_NAMES
-            ):
-                return
-            self._sleep(0.1)
-        raise RuntimeError("Outlook unread filter was not verified")
 
     @staticmethod
     def read_unread_rows(window: Any, max_results: int) -> list[str]:

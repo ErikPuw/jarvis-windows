@@ -16,9 +16,6 @@ SUMMARY_RULES: dict[str, str] = {
     ),
 }
 
-# Weather State (for greeting background thread)
-_cached_weather: Optional[str] = None
-_last_weather_fetch_time: float = 0.0
 _ctx_cache = {"weather": "Weather data unavailable."}
 
 import asyncio
@@ -26,16 +23,6 @@ import asyncio
 _open_meteo_lock = threading.Lock()
 _last_open_meteo_call = 0.0
 
-def _throttle_open_meteo_sync(delay_sec: float = 2.0):
-    global _last_open_meteo_call
-    with _open_meteo_lock:
-        now = time.time()
-        elapsed = now - _last_open_meteo_call
-        if elapsed < delay_sec:
-            sleep_time = delay_sec - elapsed
-            log.info(f"Throttling Open-Meteo (sync): sleeping for {sleep_time:.2f}s")
-            time.sleep(sleep_time)
-        _last_open_meteo_call = time.time()
 
 async def _throttle_open_meteo_async(delay_sec: float = 2.0):
     global _last_open_meteo_call

@@ -4,7 +4,6 @@ MemoryTree for Python — Quản lý bộ nhớ dài hạn dưới dạng thư m
 """
 
 import os
-import re
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -111,39 +110,3 @@ def save_daily_digest(
     except Exception as e:
         log.error(f"Failed to save daily digest: {e}")
 
-def extract_topic_knowledge(topic: str, content: str):
-    """
-    Ghi nhận/Cập nhật thông tin vào các file chủ đề cụ thể dưới dạng Obsidian Wiki.
-    Đồng thời liên kết ngược (Backlink) lại với trang nhật ký ngày hôm nay.
-    """
-    ensure_wiki_dirs()
-    
-    # Làm sạch tên file chủ đề
-    safe_topic = re.sub(r'[^a-zA-Z0-9_\-]', '', topic).lower()
-    if not safe_topic:
-        safe_topic = "general"
-        
-    topic_file = WIKI_DIR / "topics" / f"{safe_topic}.md"
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    time_str = datetime.now().strftime("%H:%M:%S")
-    
-    entry = f"- [{time_str}] (Ghi nhận từ ngày [[daily/{today_str}]]): {content.strip()}\n"
-    
-    file_exists = topic_file.exists()
-    try:
-        with open(topic_file, "a", encoding="utf-8") as f:
-            if not file_exists:
-                f.write(f"# Ghi chép chủ đề: {topic}\n")
-                f.write(f"Tags: #topic #{safe_topic}\n\n")
-            f.write(entry)
-        log.info(f"Topic knowledge extracted to {topic_file.name}")
-        
-        # Gọi WikiSync tự động để nạp ngay vào Semantic Memory
-        try:
-            from engine.core.wiki_sync import sync_wiki_to_semantic_memory
-            sync_wiki_to_semantic_memory()
-        except Exception as sync_err:
-            log.warning(f"Failed to auto-sync wiki on topic extraction: {sync_err}")
-            
-    except Exception as e:
-        log.error(f"Failed to extract topic knowledge: {e}")

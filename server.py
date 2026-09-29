@@ -65,7 +65,6 @@ _background_tasks: set[asyncio.Task] = set()
 _telegram_bot = None
 _telegram_bot_task: Optional[asyncio.Task] = None
 _mcp_connect_task: Optional[asyncio.Task] = None
-_reflection_lock = asyncio.Lock()
 _uvicorn_server = None
 _active_input_channel: str | None = None
 _active_input_owner: object | None = None
@@ -187,7 +186,6 @@ LOCAL_MODEL   = os.getenv("LOCAL_MODEL")
 VISION_MODEL  = os.getenv("VISION_MODEL")
 USER_NAME = os.getenv("USER_NAME")
 HONORIFIC = os.getenv("HONORIFIC")
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------------------------------------------------------------------
 # Speech-to-Text Corrections
@@ -1343,8 +1341,6 @@ async def voice_handler(ws: WebSocket):
         if _active_ws_session is ws:
             _active_ws_session = None
         _active_voice_connections = max(0, _active_voice_connections - 1)
-
-
 
 
 # ---------------------------------------------------------------------------

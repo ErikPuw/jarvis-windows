@@ -1311,7 +1311,6 @@ async def api_command_bar_context():
         return {"success": False, "error": str(e)}
 
 
-
 @router.post("/api/stt")
 async def api_stt(file: UploadFile = File(...)):
     """REST endpoint nhận file audio WAV từ client để nhận diện giọng nói tiếng Việt."""
@@ -1640,13 +1639,6 @@ async def api_memories_delete(id: int):
 
 # -- Learning System Sync Endpoints (validated workflows + agent outcomes) ------
 
-def _exec_db(fn):
-    from engine.core.learning import get_learning_engine
-    conn = get_learning_engine()._get_learning_db()
-    try:
-        return fn(conn)
-    finally:
-        conn.close()
 
 @router.get("/api/workflows/list")
 async def api_workflows_list(

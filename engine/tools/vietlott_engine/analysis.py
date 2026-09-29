@@ -102,33 +102,6 @@ def build_reference_tickets(
     return results
 
 
-def score_ticket(game: str, numbers, draws: list[Draw]) -> dict:
-    """Đánh giá một vé người dùng: xác suất thật + mẫu phổ biến + lịch sử."""
-    ticket = validate_numbers(game, numbers)
-    game_draws = sorted(
-        (draw for draw in draws if draw.game == game), key=_draw_key
-    )
-    history = Counter(
-        len(set(ticket) & set(draw.numbers)) for draw in game_draws
-    )
-    return {
-        "game": game,
-        "ticket": list(ticket),
-        "prize_probabilities": prize_probabilities(game),
-        "popularity_flags": popularity_flags(
-            ticket, _hot_numbers(game, game_draws) if game_draws else set()
-        ),
-        "historical_matches": {
-            str(k): history[k] for k in range(3, 7) if history[k]
-        },
-        "sample_size": len(game_draws),
-        "warning": (
-            "Mọi bộ 6 số có cùng xác suất trúng; lịch sử không làm thay đổi "
-            "xác suất kỳ tới."
-        ),
-    }
-
-
 def unpublished_current_jackpots(game: str) -> list[dict]:
     names = ["Jackpot"] if game == "mega645" else ["Jackpot 1", "Jackpot 2"]
     return [
