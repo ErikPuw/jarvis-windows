@@ -32,7 +32,6 @@ data/.jarvis_output.txt
 logs/
 bin/
 docs/
-tests/
 rules/
 media/
 scratch/
