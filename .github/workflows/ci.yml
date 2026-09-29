@@ -33,6 +33,25 @@ jobs:
       - name: Kiểm tra import nội bộ
         run: python .github/scripts/check_imports.py
 
+  tests:
+    name: Tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      # Chỉ cài các gói mà test cần import, lấy đúng version ghi trong requirements.txt.
+      # Test cần thêm gói mới → thêm tên vào danh sách grep bên dưới.
+      - name: Cài dependency cho test
+        run: |
+          grep -E '^(openai|httpx|numpy|turbovec|rank-bm25)\b' requirements.txt > ci-requirements.txt
+          pip install pytest -r ci-requirements.txt
+      # tests/live gọi llama-server thật nên không chạy trên CI
+      - name: pytest
+        run: python -m pytest tests -q --ignore=tests/live
+
   frontend:
     name: Frontend (typecheck + build)
     runs-on: ubuntu-latest
