@@ -1114,64 +1114,14 @@ async def api_media_search(q: str = "", source: str = "youtube"):
 
 @router.get("/api/media/resolve")
 async def api_media_resolve(url: str = ""):
+    """Đổi link YouTube thành link nhúng (embed). Link khác không hỗ trợ: trả embed_url rỗng."""
     if not url:
         return {"error": "No URL"}
     import re
-    embed_url = ""
-    title = ""
     yt_match = re.search(r"(?:v=|youtu\.be/|/embed/)([a-zA-Z0-9_-]{11})", url)
     if yt_match:
-        vid = yt_match.group(1)
-        return {"embed_url": f"https://www.youtube.com/embed/{vid}", "title": title}
-    page = browser = pw = None
-    try:
-        from engine.tools.media_search import pw_fetch, pw_close, pw_scrape_iframe, pw_scrape_episodes
-        page, browser, pw = await pw_fetch(url)
-        if "/watch-" not in url:
-            episodes = await pw_scrape_episodes(page)
-            if episodes:
-                ep_url = episodes[0]["url"]
-                title = episodes[0]["title"]
-                await page.goto(ep_url, wait_until="networkidle")
-                await asyncio.sleep(1.5)
-                embed_url = await pw_scrape_iframe(page)
-                if not title:
-                    title = await page.title()
-            else:
-                embed_url = ""
-        else:
-            embed_url = await pw_scrape_iframe(page)
-            title = await page.title()
-    except ImportError:
-        pass
-    except Exception as e:
-        log.debug(f"Media resolve playwright failed: {e}")
-    finally:
-        if browser is not None:
-            from engine.tools.media_search import pw_close
-            await pw_close(page, browser, pw)
-    return {"embed_url": embed_url, "title": title}
-
-
-@router.get("/api/media/episodes")
-async def api_media_episodes(url: str = ""):
-    """Get episode list from an hhpanda series page."""
-    if not url:
-        return {"episodes": []}
-    page = browser = pw = None
-    try:
-        from engine.tools.media_search import pw_fetch, pw_close, pw_scrape_episodes
-        page, browser, pw = await pw_fetch(url, wait_ms=2000)
-        episodes = await pw_scrape_episodes(page)
-        title = await page.title()
-        return {"episodes": episodes, "title": title}
-    except Exception as e:
-        log.debug(f"Media episodes failed: {e}")
-        return {"episodes": [], "error": str(e)}
-    finally:
-        if browser is not None:
-            from engine.tools.media_search import pw_close
-            await pw_close(page, browser, pw)
+        return {"embed_url": f"https://www.youtube.com/embed/{yt_match.group(1)}", "title": ""}
+    return {"embed_url": "", "title": ""}
 
 
 @router.get("/api/media/local/{path:path}")
