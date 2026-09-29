@@ -1628,6 +1628,11 @@
   gap: 10px;
 }
 
+.sd-mcp-head .settings-btn {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
 .sd-mcp-name {
   font-size: 13.5px;
   font-weight: 600;

@@ -119,12 +119,6 @@ function formatMarkdown(md: string): string {
   // Inline code
   html = html.replace(/`([^`]+)`/g, (_m, c) => `<code class="sd-inline-code">${escapeHtml(c)}</code>`);
 
-  // Ảnh trong README (assets/screenshots/...) chỉ dành cho trang GitHub: app không phục vụ thư mục đó,
-  // giữ lại sẽ ra ảnh vỡ. Đặt SAU khối code nên ví dụ `<img>` trong code (đã escape) không bị xoá.
-  html = html.replace(/<p[^>]*>\s*<img\b[^>]*>\s*<\/p>/gi, "");
-  html = html.replace(/<img\b[^>]*>/gi, "");
-  html = html.replace(/!\[[^\]]*\]\([^)]*\)/g, "");
-
   // Headings
   html = html.replace(/^###### (.*$)/gim, "<h6>$1</h6>");
   html = html.replace(/^##### (.*$)/gim, "<h5>$1</h5>");
@@ -743,7 +737,7 @@ function renderMcpList(servers: McpServerItem[]): void {
     const isConn = s.status === "connected";
     // args arrive with secret values already masked by the backend (_redact_args).
     const cmdStr = [s.command || s.url || "stdio", ...(s.args || [])].join(" ");
-    const stateText = isConn ? "Đã kết nối" : s.enabled === false ? "Tạm tắt" : "Chưa kết nối";
+    const stateText = isConn ? "Đã kết nối" : s.enabled === false ? "Tạm tắt" : s.status === "connecting" ? "Đang kết nối" : "Chưa kết nối";
     return `
       <div class="sd-mcp-item">
         <div class="sd-mcp-head">
@@ -751,6 +745,7 @@ function renderMcpList(servers: McpServerItem[]): void {
           <span class="sd-mcp-name">${escapeHtml(s.name)}</span>
           <span style="font-size:12px;color:var(--sd-muted);margin-left:4px;">${escapeHtml(s.type || "stdio")}</span>
           <span style="margin-left:auto;font-size:12px;color:${isConn ? "var(--sd-ok)" : "var(--sd-muted)"};">${stateText}</span>
+          <button type="button" class="settings-btn" data-mcp-toggle="${escapeHtml(s.name)}" data-mcp-enabled="${s.enabled === false ? "0" : "1"}">${s.enabled === false ? "Bật" : "Tắt"}</button>
         </div>
         <div class="sd-mcp-cmd">
           <code>${escapeHtml(cmdStr)}</code>
@@ -1121,6 +1116,53 @@ function bindActions(): void {
     const q = (e.target as HTMLInputElement).value.toLowerCase().trim();
     const filtered = cachedMcpServers.filter(s => s.name.toLowerCase().includes(q) || (s.command || "").toLowerCase().includes(q));
     renderMcpList(filtered);
+  });
+
+  // MCP: bật/tắt một máy chủ (áp dụng ngay, không cần khởi động lại)
+  byId("mcp-servers-list")?.addEventListener("click", async (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-mcp-toggle]");
+    if (!btn) return;
+    btn.disabled = true;
+    try {
+      await apiPost(`/api/mcp/servers/${encodeURIComponent(btn.dataset.mcpToggle || "")}/enabled`, { enabled: btn.dataset.mcpEnabled === "0" });
+    } catch (err) {
+      console.error("[settings] MCP toggle failed:", err);
+      alert(`Không đổi được trạng thái MCP: ${err instanceof Error ? err.message : err}`);
+    }
+    await loadMcpServers();
+    setTimeout(() => void loadMcpServers(), 4000);
+  });
+
+  // MCP: form thêm máy chủ
+  const syncMcpAddFields = () => {
+    const type = byId<HTMLSelectElement>("mcp-add-type")?.value || "stdio";
+    document.querySelectorAll<HTMLElement>("[data-mcp-field]").forEach(el => {
+      el.hidden = el.dataset.mcpField !== (type === "stdio" ? "stdio" : "url");
+    });
+  };
+  byId("mcp-add-type")?.addEventListener("change", syncMcpAddFields);
+  byId("btn-mcp-add")?.addEventListener("click", async () => {
+    const val = (id: string) => byId<HTMLInputElement | HTMLTextAreaElement>(id)?.value.trim() ?? "";
+    const type = byId<HTMLSelectElement>("mcp-add-type")?.value || "stdio";
+    const body = {
+      name: val("mcp-add-name"),
+      type,
+      command: type === "stdio" ? val("mcp-add-command") : null,
+      args: type === "stdio" ? val("mcp-add-args").split(/\r?\n/).map(l => l.trim()).filter(Boolean) : [],
+      url: type === "stdio" ? null : val("mcp-add-url"),
+    };
+    try {
+      await apiPost("/api/mcp/servers", body);
+      setFeedback("btn-mcp-add", "Đã thêm, đang kết nối…", "ok");
+      ["mcp-add-name", "mcp-add-command", "mcp-add-args", "mcp-add-url"].forEach(id => {
+        const el = byId<HTMLInputElement | HTMLTextAreaElement>(id);
+        if (el) el.value = "";
+      });
+      await loadMcpServers();
+      setTimeout(() => void loadMcpServers(), 4000);
+    } catch (err) {
+      setFeedback("btn-mcp-add", err instanceof Error ? err.message : String(err), "err");
+    }
   });
 
   // Prompt preview modal open/close

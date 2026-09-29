@@ -25,8 +25,6 @@
   --bubble-radius: 18px;
   --container-width: 800px;
   --container-bottom: 18px;
-  --status-absolute-bottom: 38px;
-  --status-margin-left: 18px;
   --cmd-padding: 6px 14px;
   --cmd-bg: rgba(8, 8, 12, 0.4);
   --chat-to-status-gap: 10px;
@@ -52,7 +50,7 @@
 
 #jarvis-label {
   position: fixed;
-  bottom: 58px;
+  bottom: 64px;
   left: 50%;
   transform: translateX(-50%);
   color: rgba(123, 211, 252, 0.2);
@@ -734,10 +732,17 @@ body {
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-#command-container:not(.visible) {
+/* Hidden: only the status row (orb + label) stays; chat and bar fade away. */
+#command-container:not(.visible) { pointer-events: none; }
+
+#command-container > :not(#status-row) {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+#command-container:not(.visible) > :not(#status-row) {
   opacity: 0;
+  transform: translateY(20px);
   pointer-events: none;
-  transform: translateX(-50%) translateY(20px);
 }
 
 #chat-history {
@@ -1134,14 +1139,10 @@ body {
   }
 }
 
-#status-text {
-  position: fixed;
-  bottom: var(--status-absolute-bottom);
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 10px;
-  letter-spacing: 1.2px;
-  text-transform: lowercase;
+#status-text,
+.status-ghost {
+  font-size: 12px;
+  letter-spacing: 0.3px;
   font-weight: 500;
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
@@ -1162,39 +1163,24 @@ body {
   animation: shimmer-status 4s linear infinite;
 }
 
-/* Khi command-container hiện, status-text ở bottom-left phía trên command bar */
-#command-container.visible~#status-text {
-  bottom: 60px;
-  left: 29%;
-  margin-left: var(--status-margin-left);
-  transform: translateX(0);
-}
-
-/* Khi command-container ẩn, status-text ra giữa phía trên JARVIS label */
-#command-container:not(.visible)~#status-text {
-  bottom: 74px;
-  left: 50%;
-  transform: translateX(-50%);
-  margin-left: 0;
-}
-
-#status-text.status-thinking {
+#status-text.status-thinking,
+.status-ghost.status-thinking {
   background: linear-gradient(to left, #fff, #6ec4ff, #fff);
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
 }
 
-#status-text.status-working {
+#status-text.status-working,
+.status-ghost.status-working {
   background: linear-gradient(to left, #fff, #ffaa00, #fff);
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
-  font-weight: 700;
-  letter-spacing: 2px;
 }
 
-#status-text.status-listening {
+#status-text.status-listening,
+.status-ghost.status-listening {
   background: linear-gradient(to left, #fff, #4ade80, #fff);
   background-size: 200% auto;
   -webkit-background-clip: text;
@@ -1565,10 +1551,6 @@ body {
 */
 
 @media (max-width: 768px) {
-  :root {
-    --status-absolute-bottom: 40px;
-  }
-
   #system-flow-monitor {
     display: none !important;
   }
@@ -1652,19 +1634,6 @@ body {
     font-size: 16px;
   }
 
-  #command-container.visible~#status-text {
-    bottom: 62px;
-    left: 6%;
-    margin-left: 0;
-    transform: translateX(0);
-  }
-
-  #command-container:not(.visible)~#status-text {
-    bottom: 62px;
-    left: 50%;
-    transform: translateX(-50%);
-    margin-left: 0;
-  }
 }
 
 /* Extra small devices */
@@ -3869,4 +3838,205 @@ body {
     width: 13px;
     gap: 10px;
   }
+}
+
+
+/* ── Command hub, phase 1 ─────────────────────────────────────────────── */
+
+/* status row: orb + label, in the flow between the chat and the bar so nothing overlaps it */
+#status-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 6px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+#command-container:not(.visible) #status-row { justify-content: center; }
+
+#status-orb {
+  width: 28px;
+  height: 28px;
+  margin: -2px 0;
+  flex-shrink: 0;
+}
+
+#status-orb canvas { display: block; }
+
+/* beam: a thin light travelling round the bar border (idle: faint, thinking: bright) */
+@property --beam-a {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+#command-bar-inner .cmd-beam {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: conic-gradient(from var(--beam-a), transparent 0 74%, #38bdf8 84%, #c084fc 93%, transparent 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.25;
+  animation: cmd-beam-spin 8s linear infinite;
+  transition: opacity 0.4s ease;
+}
+
+#command-bar-inner[data-state="thinking"] .cmd-beam,
+#command-bar-inner[data-state="working"] .cmd-beam {
+  opacity: 1;
+  animation-duration: 2.2s;
+}
+
+/* listening / speaking hand the edge to the voice glow (phase 3) */
+#command-bar-inner[data-state="listening"] .cmd-beam,
+#command-bar-inner[data-state="speaking"] .cmd-beam { opacity: 0; }
+
+@keyframes cmd-beam-spin { to { --beam-a: 360deg; } }
+
+@media (prefers-reduced-motion: reduce) {
+  #command-bar-inner .cmd-beam { animation: none; }
+}
+
+/* shortcut / mic buttons look like the attach button */
+#btn-slash,
+#btn-mention {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(14, 165, 233, 0.4);
+  cursor: pointer;
+  transition: color 0.2s, transform 0.2s;
+}
+
+#btn-slash:hover,
+#btn-mention:hover { color: rgba(14, 165, 233, 0.9); }
+
+/* send: paper-plane icon centred in a liquid-metal ring (src/metal-ring.ts) */
+#cmd-send-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+#cmd-send-wrap .metal-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask: radial-gradient(circle closest-side, transparent 80%, #000 84%);
+  mask: radial-gradient(circle closest-side, transparent 80%, #000 84%);
+}
+
+#cmd-send-wrap canvas { display: block; width: 100%; height: 100%; }
+
+#cmd-send-wrap #cmd-send {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  margin: 0;
+  justify-content: center;
+  align-items: center;
+  color: #f0fbff;
+}
+
+@media (max-width: 768px) {
+  #cmd-send-wrap { width: 34px; height: 34px; }
+  #cmd-send-wrap #cmd-send { width: 30px; height: 30px; }
+}
+
+/* ── Chat bubbles with a bot avatar (src/bubble-avatar.ts) ────────────── */
+.chat-bubble.assistant.has-head {
+  margin-left: 38px; /* room for the avatar, which sits outside the bubble */
+  padding: 6px 12px 8px;
+  border-radius: 4px 12px 12px 12px; /* the sharp corner points at the avatar */
+  background: rgba(6, 8, 14, 0.55);
+  border-color: rgba(14, 165, 233, 0.16);
+  color: rgba(226, 243, 255, 0.95);
+}
+
+.chat-bubble.has-head .bubble-head {
+  display: block;
+  margin-bottom: 2px;
+  line-height: 1.2;
+}
+
+.bubble-avatar {
+  position: absolute;
+  left: -38px;
+  top: 0;
+  width: 28px;
+  height: 28px;
+  display: block;
+  pointer-events: none;
+}
+
+/* only the newest avatar plays with the pointer; old ones are stills */
+.bubble-avatar[data-live="1"] {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* canvas is 1.5x its box (room for hops): pull it back so the box stays 28px */
+.bubble-avatar canvas {
+  position: absolute;
+  left: -7px;
+  top: -7px;
+  display: block;
+}
+
+.bubble-name {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: #7dd3fc;
+}
+
+.chat-bubble.user {
+  border-radius: 12px 12px 4px 12px; /* mirror of the assistant bubble */
+}
+
+
+/* status label motion (src/status-label.ts): slide on change, roll in after 10 s of quiet */
+#status-row { position: relative; }
+
+#status-text {
+  max-width: 280px;
+  padding: 3px 0; /* room for Vietnamese diacritics inside overflow:hidden */
+  overflow: hidden;
+  transition: max-width 0.4s cubic-bezier(0.3, 0.7, 0.2, 1), opacity 0.3s ease, margin 0.4s ease;
+}
+
+.status-ghost {
+  position: absolute;
+  padding: 3px 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+#status-orb { transition: opacity 0.35s ease, transform 0.35s ease; }
+
+#status-row.quiet #status-text { max-width: 0; opacity: 0; margin-left: -6px; }
+#status-row.quiet #status-orb { opacity: 0.45; transform: scale(0.8); }
+
+@media (prefers-reduced-motion: reduce) {
+  #status-text, #status-orb { transition: none; }
 }

@@ -13,7 +13,7 @@ import {
   Paperclip, SendHorizontal, LoaderCircle, Check, CircleDashed,
   Save, PlugZap, Upload, Trash2, type IconNode,
   AppWindow, Monitor, Moon, Mail, Bird, Image, Scale, Music, NotebookPen, FolderOpen,
-  Wrench, FileText, Search, Shield, Ticket, Eye, Camera, Bot,
+  Wrench, FileText, Search, Shield, Ticket, Eye, Camera, Bot, Slash, AtSign,
 } from "lucide";
 
 defineMorphIcon();
@@ -69,6 +69,11 @@ export function setStatusIcon(host: Element, status: string, prefix: "flow" | "t
   wrap.dataset.status = status;
   const variant = status === "active" ? "ring" : status in STATUS_ICON ? status : "pending";
   wrap.className = `status-glyph ${prefix}-status-icon ${prefix}-${variant}`;
+}
+
+// Static glyph buttons (no state to morph between).
+for (const [id, icon] of [["btn-slash", Slash], ["btn-mention", AtSign]] as const) {
+  document.getElementById(id)?.replaceChildren(makeIcon(icon, 14, 2));
 }
 
 for (const s of SPECS) {

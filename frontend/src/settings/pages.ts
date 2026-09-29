@@ -495,6 +495,39 @@ const mcpPage = (): string => `
           <div class="sd-empty sd-loading-state"><span>Đang nạp thông tin MCP Servers từ config/mcp_config.json…</span></div>
         </div>
       </div>
+
+      <div class="sd-card sd-mcp-add-card style="margin-top: 6px;">
+        <h4>Thêm máy chủ MCP</h4>
+        <div class="sd-field-note">Loại <code>stdio</code> chạy một lệnh ngay trên máy này: chỉ thêm lệnh bạn tin tưởng. Chỉ thêm và bật/tắt được từ chính máy chạy JARVIS.</div>
+        <div class="form-group">
+          <label for="mcp-add-name">Tên</label>
+          <input type="text" id="mcp-add-name" placeholder="Ví dụ: context7" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="mcp-add-type">Loại</label>
+          <select id="mcp-add-type">
+            <option value="stdio">stdio (chạy lệnh trên máy)</option>
+            <option value="http">http</option>
+            <option value="sse">sse</option>
+          </select>
+        </div>
+        <div class="form-group" data-mcp-field="stdio">
+          <label for="mcp-add-command">Lệnh</label>
+          <input type="text" id="mcp-add-command" placeholder="Ví dụ: npx" autocomplete="off">
+        </div>
+        <div class="form-group" data-mcp-field="stdio">
+          <label for="mcp-add-args">Tham số (mỗi dòng một tham số)</label>
+          <textarea id="mcp-add-args" rows="3" spellcheck="false" placeholder="-y&#10;@upstash/context7-mcp"></textarea>
+        </div>
+        <div class="form-group" data-mcp-field="url" hidden>
+          <label for="mcp-add-url">URL</label>
+          <input type="text" id="mcp-add-url" placeholder="https://..." autocomplete="off">
+        </div>
+        <div class="sd-action-row">
+          <button type="button" class="settings-btn primary" id="btn-mcp-add">Thêm và kết nối</button>
+          ${feedback("btn-mcp-add")}
+        </div>
+      </div>
     </div>
   </section>`;
 

@@ -13,6 +13,10 @@ import "./style.css";
 import { setStatusIcon, agentBadge } from "./icons";
 import { mountMascot } from "./mascot";
 import { mountClock } from "./clock";
+import { mountStatusOrb } from "./status-orb";
+import { mountStatusLabel } from "./status-label";
+import { mountMetalRing } from "./metal-ring";
+import { attachBubbleHead, setBubbleName, setBubbleContent } from "./bubble-avatar";
 import { generateResourcesHTML, generateSystemsHTML } from "./dashboard-hud";
 
 const DEFAULT_FETCH_TIMEOUT_MS = 15000;
@@ -61,6 +65,14 @@ const statusEl = document.getElementById("status-text")!;
 const errorEl = document.getElementById("error-text")!;
 mountMascot(document.getElementById("command-bar-inner")!);
 mountClock();
+mountStatusOrb(document.getElementById("status-orb")!);
+mountStatusLabel(document.getElementById("status-row")!, statusEl);
+mountMetalRing(document.getElementById("cmd-send-wrap")!);
+{
+  // command-bar beam follows the JARVIS state (CSS keys on data-state)
+  const bar = document.getElementById("command-bar-inner")!;
+  window.addEventListener("jarvis:mascot", (e) => { bar.dataset.state = String((e as CustomEvent).detail); });
+}
 const commandInput = document.getElementById("command-input") as HTMLTextAreaElement;
 const filePinnedContainer = document.getElementById("file-pinned-container")!;
 const filePinnedName = document.getElementById("file-pinned-name")!;
@@ -243,7 +255,7 @@ export function formatMarkdown(text: string): string {
           tableHtml += '<style>.table-responsive-wrapper table img { max-width:120px !important; max-height:190px !important; align-items: center; object-fit:contain; border-radius:6px; margin:4px auto; display:block; border:1px solid rgba(255,255,255,0.1); box-shadow:0 2px 6px rgba(0,0,0,0.25); }</style>';
           tableHtml += '<table style="width:100%; min-width:320px; border-collapse:collapse; font-size:12px; color:#e2e8f0; background:rgba(255,255,255,0.02);">';
           tableHtml += '<tr style="background:rgba(14,165,233,0.15); font-weight:600; color:#fff; border-bottom:1px solid rgba(255,255,255,0.1);">';
-          // Kiểm tra xem đây có phải bảng hàng ngang (mỗi phim một cột) hay không
+          // Kiểm tra xem đây có phải bảng hàng ngang (mỗi mục một cột) hay không
           // Bằng cách xem các tiêu đề cột có chứa Poster/Hình ảnh không
           const isHorizontalTable = !cells.some(c => {
             const lc = c.toLowerCase();
@@ -259,7 +271,7 @@ export function formatMarkdown(text: string): string {
               const lowerCell = cell.toLowerCase();
               if (lowerCell.includes('poster') || lowerCell.includes('hình ảnh')) {
                 widthStyle = 'width:90px; min-width:90px;';
-              } else if (lowerCell.includes('phim') || lowerCell.includes('tên bài') || lowerCell.includes('tên sản phẩm')) {
+              } else if (lowerCell.includes('tên bài') || lowerCell.includes('tên sản phẩm')) {
                 widthStyle = 'width:130px; min-width:120px; text-align:left;';
               } else if (lowerCell.includes('nội dung') || lowerCell.includes('nghệ sĩ') || lowerCell.includes('giá')) {
                 widthStyle = 'min-width:200px; text-align:left;';
@@ -355,6 +367,12 @@ export function formatMarkdown(text: string): string {
 }
 
 
+/** Bubble text without the avatar/name header. */
+function bubblePlainText(el: HTMLElement): string {
+  const head = el.querySelector(":scope > .bubble-head");
+  return (el.textContent ?? "").slice(head?.textContent?.length ?? 0);
+}
+
 function addChatMessage(role: "user" | "assistant", text: string): HTMLElement | null {
   console.log(`[UI] Adding ${role} message: ${text}`);
   if (!chatHistory) {
@@ -364,7 +382,7 @@ function addChatMessage(role: "user" | "assistant", text: string): HTMLElement |
 
   // De-duplication: Don't add the exact same message twice in a row
   const lastBubble = chatHistory.lastElementChild as HTMLElement;
-  if (lastBubble && lastBubble.classList.contains(role) && lastBubble.textContent === text) {
+  if (lastBubble && lastBubble.classList.contains(role) && bubblePlainText(lastBubble) === text) {
     console.log("[UI] Duplicate message detected, skipping add.");
     return lastBubble;
   }
@@ -406,6 +424,7 @@ function addChatMessage(role: "user" | "assistant", text: string): HTMLElement |
       scrollToBottomIfNeeded(true);
     });
   } else {
+    attachBubbleHead(bubble);
     // Hiệu ứng stream gõ chữ cho assistant
     let currentText = "";
     // Sử dụng regex để tách từ nhưng giữ nguyên các dấu xuống dòng và khoảng trắng
@@ -415,7 +434,7 @@ function addChatMessage(role: "user" | "assistant", text: string): HTMLElement |
     const timer = setInterval(() => {
       if (i < tokens.length) {
         currentText += tokens[i];
-        bubble.innerHTML = formatMarkdown(currentText);
+        setBubbleContent(bubble, formatMarkdown(currentText));
         i++;
 
         // Tự động cuộn xuống dưới
@@ -601,7 +620,10 @@ function renderInteractiveCard(container: HTMLElement, data: any) {
   if (data.type === "tracker" && !data.image && existingIcon && !existingCard!.querySelector("img")
       && !!existingName === !!data.title) {
     existingCard!.className = `interactive-card tracker-card${data.status ? " " + data.status : ""}`;
-    if (existingName) existingName.textContent = agentBadge(data.title).name;
+    if (existingName) {
+      existingName.textContent = agentBadge(data.title).name;
+      if (activeAssistantBubble) setBubbleName(activeAssistantBubble, existingName.textContent);
+    }
     existingCard!.querySelector(".tracker-label")!.textContent = trackerLabel(data.label);
     setStatusIcon(existingIcon, data.status, "tracker", 14);
     return;
@@ -831,6 +853,7 @@ function renderInteractiveCard(container: HTMLElement, data: any) {
       body.appendChild(img);
     } else if (data.title) {
       const badge = agentBadge(data.title);
+      if (activeAssistantBubble) setBubbleName(activeAssistantBubble, badge.name);
       const iconBox = document.createElement("span");
       iconBox.className = "tracker-agent-icon";
       iconBox.appendChild(badge.icon);
@@ -1576,12 +1599,12 @@ function updateStatus(state: State, message?: string) {
   }
 
   const labels: Record<State, string> = {
-    idle: canListen ? "listening..." : "",
-    listening: canListen ? "listening..." : "listening...",
-    thinking: "thinking...",
-    working: "working...",
-    speaking: "speaking...",
-    restarting: "restarting...",
+    idle: canListen ? "Đang nghe…" : "Sẵn sàng",
+    listening: "Đang nghe…",
+    thinking: "Đang nghĩ…",
+    working: "Đang làm việc…",
+    speaking: "Đang trả lời…",
+    restarting: "Đang khởi động lại…",
   };
 
   const newText = message || labels[state];
@@ -1664,7 +1687,7 @@ const voiceInput = createVoiceInput(
       // Immediately process user's new spoken query
       addChatMessage("user", text);
       addToCommandHistory(text);
-      if (deliverTranscript(text)) transition("thinking", "thinking...");
+      if (deliverTranscript(text)) transition("thinking");
     } else if (isSpeaking || audioPlayer.isPlaying() || isBusy || currentState === "thinking" || currentState === "working") {
       const bubble = addChatMessage("user", text);
       if (bubble) bubble.classList.add("pending");
@@ -1676,7 +1699,7 @@ const voiceInput = createVoiceInput(
       // User spoke — send transcript
       addChatMessage("user", text);
       addToCommandHistory(text); // Sync voice to command bar history
-      if (deliverTranscript(text)) transition("thinking", "thinking...");
+      if (deliverTranscript(text)) transition("thinking");
     }
   },
   (msg: string) => {
@@ -1708,7 +1731,7 @@ const interruptDetector = createInterruptDetector(() => {
   isSpeaking = false;
   isBusy = false;
   socket.send({ type: "cancel" });
-  transition("listening", "Đang nghe...");
+  transition("listening");
 });
 
 audioPlayer.onStarted(() => {
@@ -1806,6 +1829,7 @@ socket.onMessage((msg) => {
       <div class="typing-dot"></div>
       <div class="typing-dot"></div>
     `;
+    attachBubbleHead(activeAssistantBubble);
     chatHistory.appendChild(activeAssistantBubble);
 
     requestAnimationFrame(() => {
@@ -1817,7 +1841,7 @@ socket.onMessage((msg) => {
     if (chunkText && activeAssistantBubble) {
       if (activeAssistantBubble.classList.contains("typing-loader")) {
         activeAssistantBubble.classList.remove("typing-loader");
-        activeAssistantBubble.innerHTML = "";
+        setBubbleContent(activeAssistantBubble, "");
       }
       activeAssistantText += chunkText;
       streamTargetText = activeAssistantText; // Feed typewriter target buffer
@@ -1864,7 +1888,7 @@ socket.onMessage((msg) => {
     if (activeAssistantBubble) {
       if (activeAssistantBubble.classList.contains("typing-loader")) {
         activeAssistantBubble.classList.remove("typing-loader");
-        activeAssistantBubble.innerHTML = "";
+        setBubbleContent(activeAssistantBubble, "");
       }
       let textContainer = activeAssistantBubble.querySelector(".bubble-text") as HTMLElement;
       if (!textContainer) {
@@ -2070,6 +2094,16 @@ const btnMenu = document.getElementById("btn-menu")!;
 const menuDropdown = document.getElementById("menu-dropdown")!;
 const btnRestart = document.getElementById("btn-restart")!;
 
+// Command-bar shortcut buttons: insert "/" or "@" so the existing suggestion logic
+// (input listener) opens the command / agent list.
+for (const [id, ch] of [["btn-slash", "/"], ["btn-mention", "@"]] as const) {
+  document.getElementById(id)!.addEventListener("click", () => {
+    commandInput.value += ch;
+    commandInput.focus();
+    commandInput.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
 btnMute.addEventListener("click", (e) => {
   e.stopPropagation();
   isMuted = !isMuted;
@@ -2146,14 +2180,14 @@ btnRestart.addEventListener("click", async (e) => {
   // Đẩy state machine về "restarting" để transition("idle") sau này không bị
   // early-return (statusEl đã được ghi trực tiếp, không qua updateStatus()).
   currentState = "restarting";
-  statusEl.textContent = "restarting...";
+  statusEl.textContent = "Đang khởi động lại…";
   statusEl.className = "status-restarting";
   try {
     await fetchWithTimeout("/api/restart", { method: "POST" });
   } catch {
     restartPending = false;
     transition("idle");
-    statusEl.textContent = "restart failed";
+    statusEl.textContent = "Khởi động lại thất bại";
     return;
   }
   // Nếu server không quay lại trong 30s, đừng để UI kẹt mãi ở "restarting...".
@@ -2161,7 +2195,7 @@ btnRestart.addEventListener("click", async (e) => {
     if (restartPending) {
       restartPending = false;
       transition("idle");
-      statusEl.textContent = "restart failed (server did not return)";
+      statusEl.textContent = "Khởi động lại thất bại (server không phản hồi)";
     }
   }, RESTART_RETURN_TIMEOUT_MS);
 });
@@ -2292,7 +2326,7 @@ function toggleCommandBar(forceShow?: boolean) {
 
 async function uploadAndSend(text: string, file: File) {
   if (currentState === "idle" || currentState === "listening") {
-    transition("thinking", `uploading ${file.name}...`);
+    transition("thinking", `Đang tải ${file.name}…`);
   }
   try {
     const formData = new FormData();
