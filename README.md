@@ -304,15 +304,16 @@ Danh sách nặng (agents, hooks, skills, prompts, commands, plugins) lấy từ
 ### Các bước
 
 ```bash
-git clone https://github.com/erikpuw/jarvis.git
-cd jarvis
+git clone https://github.com/ErikPuw/jarvis-windows.git
+cd jarvis-windows
 pip install -r requirements.txt
 cd frontend && npm install && cd ..
 
 # Chứng chỉ SSL cho HTTPS/WSS
 openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj '/CN=localhost'
 
-# Tạo file .env theo bảng cấu hình bên dưới
+# Tạo .env từ mẫu rồi điền giá trị (bảng giải thích bên dưới). Nếu quên, server tự copy mẫu khi khởi động.
+cp .env.example .env           # PowerShell: Copy-Item .env.example .env
 # Chạy llama.cpp (8080, 8081) và Redis (6379)
 
 python server.py               # backend, tự bật Stream TTS :8082 khi dùng VieNeu
@@ -411,6 +412,7 @@ rtk python -m pytest tests -q --ignore=tests/live
 
 - **Golden** (`tests/test_prompts_wired.py`): prompt của gate, classifier, offer_context, dream, self_healing và workflow phải giống từng byte với `tests/golden/`. Test này cũng kiểm tra không còn chữ prompt viết trong code, và các module import được theo mọi thứ tự.
 - **Không đụng dữ liệu thật**: test learning và test script dọn chạy trên DB và wiki tạm.
+- **CI** (`.github/workflows/ci.yml`, chạy mỗi lần push `main` và mỗi PR): `ruff check .` (rule trong `ruff.toml`), compile toàn bộ Python, `python .github/scripts/check_imports.py` (mọi `from engine... import X` phải trỏ tới tên có thật), và `npm run build` cho frontend. Chạy lại các lệnh này trước khi push để khỏi đỏ CI.
 - **Probe live** (`tests/live/probes/`, chỉ gọi llama-server):
 
 | Probe | Đo gì |

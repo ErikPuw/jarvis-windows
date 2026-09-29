@@ -786,10 +786,10 @@ async def api_settings_status(apps: bool = False):
     import server
     await asyncio.to_thread(server._update_session_tokens_from_log)
     _, env_dict = server._read_env()
-    l_key = env_dict.get("LOCAL_API_KEY").strip()
-    l_url = env_dict.get("LOCAL_URL").strip()
+    l_key = (env_dict.get("LOCAL_API_KEY") or "").strip()
+    l_url = (env_dict.get("LOCAL_URL") or "").strip()
     llm_ok = bool(l_key) and bool(l_url)
-    tts_ok = bool(env_dict.get("TTS_LOCAL_URL").strip())
+    tts_ok = bool((env_dict.get("TTS_LOCAL_URL") or "").strip())
     
     memory_count = 0
     try:
