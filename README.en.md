@@ -6,9 +6,9 @@
 
 > *"Thưa ngài, tôi có thể giúp gì cho ngài?"* — *"How may I help you, sir?"*
 
-![JARVIS home screen: an audio-reactive particle orb, a clock and a telemetry panel](assets/screenshots/hud-main.webp)
-
 **Version:** see the [`VERSION`](VERSION) file (single source of truth) · [Changelog](CHANGELOG.en.md)
+
+![JARVIS home screen: an audio-reactive particle orb, a clock and a telemetry panel](assets/screenshots/hud-main.webp)
 
 ## 🎯 What Does JARVIS Do?
 

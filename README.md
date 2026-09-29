@@ -6,9 +6,9 @@
 
 > *"Thưa ngài, tôi có thể giúp gì cho ngài?"*
 
-![Màn hình chính của JARVIS: quả cầu hạt phản ứng theo âm thanh, đồng hồ và bảng telemetry](assets/screenshots/hud-main.webp)
-
 **Version:** xem file [`VERSION`](VERSION) (nguồn duy nhất) · [Nhật ký phiên bản](CHANGELOG.md)
+
+![Màn hình chính của JARVIS: quả cầu hạt phản ứng theo âm thanh, đồng hồ và bảng telemetry](assets/screenshots/hud-main.webp)
 
 ## 🎯 JARVIS Làm Gì?
 
