@@ -38,8 +38,8 @@ Tra cứu văn bản pháp luật Việt Nam.
 
 ## @media
 alias: @agent_media
-Nghe nhạc, xem phim, xem livestream, xem video Youtube.
-- search_media | mở nhạc/phim/video | offer
+Nghe nhạc, xem livestream, xem video Youtube.
+- search_media | mở nhạc/video | offer
 
 ## @notes
 alias: @agent_notes

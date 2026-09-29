@@ -1067,36 +1067,6 @@ async def voice_handler(ws: WebSocket):
                         else:
                             fut.set_result(False)
 
-                # Auto-play tập phim khi nhận được phản hồi chọn tập từ Frontend
-                if "media_select_" in card_id and action == "submit" and val:
-                    selected_url = val[0] if isinstance(val, list) and val else val
-                    log.info(f"Auto-resolving and playing selected episode URL: {selected_url}")
-                    
-                    async def _play_selected_episode(selected_url=selected_url):
-                        from engine.tools.media_search import pw_fetch, pw_close, pw_scrape_iframe
-                        page = browser = pw = None
-                        try:
-                            page, browser, pw = await pw_fetch(selected_url)
-                            embed_url = await pw_scrape_iframe(page)
-                            title = await page.title()
-                            if embed_url:
-                                await safe_ws_send_json(ws, {
-                                    "type": "media_open",
-                                    "query": "Phim",
-                                    "embed_url": embed_url,
-                                    "title": title,
-                                    "source": "phim",
-                                })
-                        except Exception as pe:
-                            log.error(f"Failed to resolve selected episode: {pe}")
-                        finally:
-                            if browser is not None:
-                                await pw_close(page, browser, pw)
-                    
-                    _play_task = asyncio.create_task(_play_selected_episode())
-                    _background_tasks.add(_play_task)
-                    _play_task.add_done_callback(_background_tasks.discard)
-
                 # Auto-play video Youtube khi nhận được phản hồi chọn video từ Frontend
                 if "youtube_select_" in card_id and action == "submit" and val:
                     selected_embed_url = val[0] if isinstance(val, list) and val else val

@@ -136,7 +136,7 @@
   "type": "function",
   "function": {
    "name": "media",
-   "description": "Nghe nhạc, xem phim, xem livestream, xem video Youtube.",
+   "description": "Nghe nhạc, xem livestream, xem video Youtube.",
    "parameters": {
     "type": "object",
     "properties": {

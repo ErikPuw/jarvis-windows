@@ -16,7 +16,7 @@ EXPECTED_OFFERABLE_TOOLS = {
     "get_market_data": ("search", "giá vàng/xăng/tỷ giá"),
     "get_cgv_movies": ("search", "lịch chiếu phim"),
     "get_epic_free_games": ("search", "game miễn phí"),
-    "search_media": ("media", "mở nhạc/phim/video"),
+    "search_media": ("media", "mở nhạc/video"),
     "cap_screen": ("vision", "chụp màn hình"),
     "read_screen": ("vision", "xem màn hình"),
     "take_note": ("notes", "ghi chú"),
@@ -33,7 +33,7 @@ EXPECTED_AGENT_CRITERIA = """
 - vietlott: Phân tích kết quả Mega 6/45, Power 6/55.
 - vision: Chỉ khi người dùng yêu cầu chụp/xem màn hình ngay bây giờ.
 - webcam: Chỉ khi người dùng yêu cầu xem/dùng webcam hoặc camera trực tiếp.
-- media: Nghe nhạc, xem phim, xem livestream, xem video Youtube.
+- media: Nghe nhạc, xem livestream, xem video Youtube.
 - history: Chỉ khi người dùng chủ động yêu cầu xem lại lịch sử trò chuyện cũ. KHÔNG dùng cho chat/phản hồi/nối tiếp thông thường.
 - notes: Ghi lại, hiển thị danh sách, hoặc xoá note.
 - project: Kiểm tra project, quét lỗi cú pháp, báo cáo sức khỏe, lịch sử vá lỗi.

@@ -28,7 +28,7 @@ _DEFAULT_RULES = (
 def build_tool_summary_prompt(tool_name: str, content: str = "") -> str:
     """Xây dựng prompt tóm tắt kết quả tool cho LLM vòng 2."""
     rules = ""
-    # Ép dùng định dạng bảng phim/video nếu phát hiện kết quả chứa thẻ search_media hoặc HHPANDA/YOUTUBE (loại trừ CGV)
+    # Ép dùng định dạng bảng nhạc/video nếu là tool search_media hoặc kết quả chứa thẻ search_media (loại trừ CGV)
     if tool_name == "search_media" or ("search_media" in content and "get_cgv_movies" not in content):
         try:
             from engine.tools.media_search import summary_rules

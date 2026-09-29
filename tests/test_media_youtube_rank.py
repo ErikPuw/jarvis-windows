@@ -39,3 +39,18 @@ def test_media_summary_rules_keep_tool_table_and_now_playing():
     rules = m.summary_rules("Tìm thấy 4 kết quả\n| Poster | Tên bài | Nghệ sĩ | Thời Lượng |\n✅ ĐANG PHÁT: X")
     assert "Tên sản phẩm" not in rules and "Giá" not in rules  # mẫu bảng mua sắm, không phải nhạc/phim
     assert "NGUYÊN VĂN" in rules and "ĐANG PHÁT" in rules
+
+
+def test_execute_media_search_plays_youtube_and_has_no_movie_route(monkeypatch):
+    """Đã gỡ nguồn phim (hhpanda): mọi câu, kể cả "xem phim ...", chỉ đi YouTube/local và phát bằng media_open."""
+    monkeypatch.setattr(m, "_yt_search", _fake_search)
+    sent = []
+
+    async def send(_ws, payload):
+        sent.append(payload)
+
+    out = asyncio.run(m.execute_media_search({"query": "xem phim making my way sơn tùng"}, ws=object(), safe_ws_send_json=send))
+    assert out["results"][0]["source"] == "youtube"
+    assert "episodes" not in out and "ĐANG PHÁT" in out["text"]
+    assert [p["type"] for p in sent] == ["media_open"] and sent[0]["source"] == "youtube"
+    assert not hasattr(m, "search_phim") and not hasattr(m, "pw_fetch")
