@@ -73,7 +73,7 @@ JARVIS là trợ lý AI cá nhân chạy hoàn toàn trên máy Windows, lấy c
 | 6 | Gate (LLM, `temperature 0`) | Mọi câu còn lại | `general`, `general_knowledge`, `orchestrator`, hoặc `attachment_clarify` khi có tệp đính kèm |
 
 - **orchestrator**: classifier chọn agent. Với câu lệnh nằm lẫn trong lời chat, classifier được rút gọn câu (ví dụ "…bạn mở giúp tôi được không?" thành "mở Notepad"), nhưng chỉ khi câu rút gọn **chỉ bớt từ**, không thêm từ mới. Agent chạy xong, `next_tasks` quyết định có gọi thêm agent khác không. Nhiều kết quả được `synthesizer` gộp lại thành một câu trả lời.
-- **plan** (`@plans`): tối đa 3 vòng × 3 bước (tổng 5), mỗi bước 60 giây; model chỉ chọn đích và viết câu tra cứu (JSON có schema), không cầm tool; vòng nào không bước nào thành công thì dừng. Tra web qua tool `web_research` (Google News RSS rồi đọc 3 bài), mỗi trang được soát chèn lệnh. Sở thích trong `Preferences.md` chỉ bước kết luận thấy, không bao giờ nằm trong câu tra cứu gửi ra ngoài. Spec: `docs/superpowers/specs/2026-09-26-goal-plans-design.md`.
+- **plan** (`@plans`): tối đa 3 vòng × 3 bước (tổng 5), mỗi bước 60 giây; model chỉ chọn đích và viết câu tra cứu (JSON có schema), không cầm tool; vòng nào không bước nào thành công thì dừng. Tra web qua tool `web_research` (Google News RSS rồi đọc 3 bài), mỗi trang được soát chèn lệnh. Sở thích trong `Preferences.md` chỉ bước kết luận thấy, không bao giờ nằm trong câu tra cứu gửi ra ngoài.
 - **general / general_knowledge**: nhánh chat ghép 5 khối message (xem mục sau). Nếu agent từ chối làm, lượt đó cũng rơi về nhánh chat, kèm chỉ thị "chưa làm được".
 - **Tệp đính kèm**: bảng chọn chỉ đưa agent đọc được định dạng đó (`attachment_agents_for` lấy từ `rag_tool` + `image_engine` + đuôi Office): pdf/txt/md/csv/json/html → RAG; docx/xlsx/pptx → RAG hoặc OfficeCLI; jpg/png/webp/bmp → Upscayl. Định dạng khác thì Jarvis nói "chưa xử lý được". Có tệp mà classifier chọn agent không dùng tệp → hỏi lại bằng bảng chọn (trừ `@mention`).
 - **Tệp nén** (`.zip .rar .7z .tar .gz .tgz .bz2 .xz .zst`, [engine/router/archive.py](engine/router/archive.py)): xử lý **trước gate** bằng `bsdtar` có sẵn của Windows (không cài thêm thư viện). Bên trong có **đúng 1** tệp xử lý được → giải nén riêng tệp đó và xử lý như gửi thẳng; **nhiều tệp** → dừng, liệt kê tên, nhờ gửi từng tệp; **không có** → báo rõ. Chặn: > 200 mục, tệp > 200 MB, đường dẫn `..`/tuyệt đối, tệp nén lồng; timeout 60 giây.
@@ -81,8 +81,6 @@ JARVIS là trợ lý AI cá nhân chạy hoàn toàn trên máy Windows, lấy c
 ---
 
 ## 🧩 Prompt Tập Trung Một Nơi
-
-Thiết kế: [`docs/superpowers/specs/2026-09-25-prompt-consolidation-design.md`](docs/superpowers/specs/2026-09-25-prompt-consolidation-design.md).
 
 Muốn sửa prompt thì sửa file `.md`, không viết chữ prompt trong code.
 
@@ -347,7 +345,7 @@ Danh sách đầy đủ kèm giải thích nằm trong [`.env.example`](.env.exa
 | `DREAM_QUIET_HOUR_START` / `_END` | `2` / `5` | Khung giờ Dream được tự chạy |
 | `DREAM_INTERVAL_HOURS` | `24` | Khoảng cách tối thiểu giữa hai lần Dream |
 
-**Sampling nhánh chat** (Gemma, `engine/server/llm_server.py`): `temperature 0.4 / top_p 0.8 / top_k 40`, đã đo và giữ nguyên, xem [báo cáo](docs/superpowers/reports/2026-09-25-sampling-comparison.md). Gate và classifier luôn dùng `temperature 0`.
+**Sampling nhánh chat** (Gemma, `engine/server/llm_server.py`): `temperature 0.4 / top_p 0.8 / top_k 40`, đã đo và giữ nguyên. Gate và classifier luôn dùng `temperature 0`.
 
 ### 📱 Truy cập từ xa qua Tailscale
 1. Cài Tailscale trên máy chạy JARVIS và trên điện thoại, đăng nhập **cùng một tài khoản**.
@@ -387,7 +385,7 @@ jarvis/
 ├── config/                # mcp_config.json
 ├── scripts/               # cleanup_learning_2026_09.py (mặc định chỉ xem, --apply mới dọn)
 ├── data/                  # jarvis.db, wiki/ (Obsidian), documents/, backups/, dream_archive/
-├── docs/superpowers/      # specs/, plans/, reports/
+├── docs/superpowers/      # specs/, plans/, reports/ (tài liệu nội bộ, không đưa lên repo)
 ├── engine/
 │   ├── router/            # decide, gate, replay, ask_user, fast_paths, dispatch, chat
 │   ├── orchestrator/      # classifier, dispatcher, synthesizer, registry
@@ -416,7 +414,7 @@ rtk python -m pytest tests -q --ignore=tests/live
 
 - **Golden** (`tests/test_prompts_wired.py`): prompt của gate, classifier, offer_context, dream, self_healing và workflow phải giống từng byte với `tests/golden/`. Test này cũng kiểm tra không còn chữ prompt viết trong code, và các module import được theo mọi thứ tự.
 - **Không đụng dữ liệu thật**: test learning và test script dọn chạy trên DB và wiki tạm.
-- **CI** (`.github/workflows/ci.yml`, chạy mỗi lần push `main` và mỗi PR): `ruff check .` (rule trong `ruff.toml`), compile toàn bộ Python, `python .github/scripts/check_imports.py` (mọi `from engine... import X` phải trỏ tới tên có thật), `pytest tests --ignore=tests/live` (chỉ cài các gói test cần: openai, httpx, numpy, turbovec, rank-bm25), và `npm run build` cho frontend. Chạy lại các lệnh này trước khi push để khỏi đỏ CI.
+- **CI** (`.github/workflows/ci.yml`, chạy mỗi lần push `main` và mỗi PR): `ruff check .` (rule trong `ruff.toml`), compile toàn bộ Python, `python .github/scripts/check_imports.py` (mọi `from engine... import X` phải trỏ tới tên có thật), `pytest` (cài `requirements-ci.txt`, bộ thư viện nhẹ cộng `bsdtar`; bỏ qua `tests/live/` và `tests/test_live_*.py` vì cần llama-server thật), và `npm run build` cho frontend. Chạy lại các lệnh này trước khi push để khỏi đỏ CI.
 - **Probe live** (`tests/live/probes/`, chỉ gọi llama-server):
 
 | Probe | Đo gì |

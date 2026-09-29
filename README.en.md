@@ -75,7 +75,7 @@ JARVIS is a personal AI assistant that runs entirely on a Windows machine, inspi
 | 6 | Gate (LLM, `temperature 0`) | Everything else | `general`, `general_knowledge`, `orchestrator`, or `attachment_clarify` when a file is attached |
 
 - **orchestrator**: the classifier picks agents. For commands embedded in chat, the classifier may shorten the sentence (e.g. "…bạn mở giúp tôi được không?" → "mở Notepad", i.e. "…could you open it for me?" → "open Notepad"), but only if the shortened sentence **only removes words** and adds none. After an agent finishes, `next_tasks` decides whether to call another agent. Multiple results are merged into one answer by the `synthesizer`.
-- **plan** (`@plans`): at most 3 rounds × 3 steps (5 in total), 60 seconds per step; the model only chooses targets and writes lookup queries (schema-validated JSON) and never holds tools; a round with no successful step stops the run. Web lookups go through the `web_research` tool (Google News RSS, then reads 3 articles), and each page is checked for injected instructions. Preferences in `Preferences.md` are only visible to the conclusion step and are never sent out in lookup queries. Spec: `docs/superpowers/specs/2026-09-26-goal-plans-design.md`.
+- **plan** (`@plans`): at most 3 rounds × 3 steps (5 in total), 60 seconds per step; the model only chooses targets and writes lookup queries (schema-validated JSON) and never holds tools; a round with no successful step stops the run. Web lookups go through the `web_research` tool (Google News RSS, then reads 3 articles), and each page is checked for injected instructions. Preferences in `Preferences.md` are only visible to the conclusion step and are never sent out in lookup queries.
 - **general / general_knowledge**: the chat branch assembles 5 message blocks (see next section). If an agent declines, the turn also falls back to chat with a "could not be done" directive.
 - **Attachments**: the picker only offers agents that can read the format (`attachment_agents_for`, built from `rag_tool` + `image_engine` + Office extensions): pdf/txt/md/csv/json/html → RAG; docx/xlsx/pptx → RAG or OfficeCLI; jpg/png/webp/bmp → Upscayl. Other formats: Jarvis says it "can't handle this yet". If a file is attached but the classifier chose an agent that doesn't use files → it asks again with the picker (except for `@mention`).
 - **Archives** (`.zip .rar .7z .tar .gz .tgz .bz2 .xz .zst`, [engine/router/archive.py](engine/router/archive.py)): handled **before the gate** with Windows' built-in `bsdtar` (no extra libraries). **Exactly 1** usable file inside → extract only that file and treat it as if sent directly; **several files** → stop, list the names and ask for them one at a time; **none** → say so clearly. Blocked: > 200 entries, files > 200 MB, `..`/absolute paths, nested archives; 60-second timeout.
@@ -83,8 +83,6 @@ JARVIS is a personal AI assistant that runs entirely on a Windows machine, inspi
 ---
 
 ## 🧩 Prompts in One Place
-
-Design: [`docs/superpowers/specs/2026-09-25-prompt-consolidation-design.md`](docs/superpowers/specs/2026-09-25-prompt-consolidation-design.md).
 
 To change a prompt, edit the `.md` file — never write prompt text in code.
 
@@ -349,7 +347,7 @@ The full list with comments is in [`.env.example`](.env.example). The most impor
 | `DREAM_QUIET_HOUR_START` / `_END` | `2` / `5` | Window in which Dream may run automatically |
 | `DREAM_INTERVAL_HOURS` | `24` | Minimum gap between two Dream runs |
 
-**Chat-branch sampling** (Gemma, `engine/server/llm_server.py`): `temperature 0.4 / top_p 0.8 / top_k 40`, measured and kept as-is — see the [report](docs/superpowers/reports/2026-09-25-sampling-comparison.md). The gate and classifier always use `temperature 0`.
+**Chat-branch sampling** (Gemma, `engine/server/llm_server.py`): `temperature 0.4 / top_p 0.8 / top_k 40`, measured and kept as-is. The gate and classifier always use `temperature 0`.
 
 ### 📱 Remote access via Tailscale
 1. Install Tailscale on the JARVIS machine and on your phone, signed in to **the same account**.
@@ -389,7 +387,7 @@ jarvis/
 ├── config/                # mcp_config.json
 ├── scripts/               # cleanup_learning_2026_09.py (dry-run by default, --apply to clean)
 ├── data/                  # jarvis.db, wiki/ (Obsidian), documents/, backups/, dream_archive/
-├── docs/superpowers/      # specs/, plans/, reports/
+├── docs/superpowers/      # specs/, plans/, reports/ (internal, not in the repo)
 ├── engine/
 │   ├── router/            # decide, gate, replay, ask_user, fast_paths, dispatch, chat
 │   ├── orchestrator/      # classifier, dispatcher, synthesizer, registry
@@ -418,7 +416,7 @@ rtk python -m pytest tests -q --ignore=tests/live
 
 - **Golden** (`tests/test_prompts_wired.py`): the gate, classifier, offer_context, dream, self_healing and workflow prompts must be byte-identical to `tests/golden/`. The test also checks that no prompt text remains in code and that modules import cleanly in any order.
 - **Never touches real data**: learning tests and cleanup-script tests run against a temporary DB and wiki.
-- **CI** (`.github/workflows/ci.yml`, runs on every push to `main` and every PR): `ruff check .` (rules in `ruff.toml`), compile all Python, `python .github/scripts/check_imports.py` (every `from engine... import X` must point to a real name), `pytest tests --ignore=tests/live` (installing only the packages tests need: openai, httpx, numpy, turbovec, rank-bm25), and `npm run build` for the frontend. Run these locally before pushing to keep CI green.
+- **CI** (`.github/workflows/ci.yml`, runs on every push to `main` and every PR): `ruff check .` (rules in `ruff.toml`), compile all Python, `python .github/scripts/check_imports.py` (every `from engine... import X` must point to a real name), `pytest` (installs the lightweight `requirements-ci.txt` plus `bsdtar`; skips `tests/live/` and `tests/test_live_*.py`, which need a real llama-server), and `npm run build` for the frontend. Run these locally before pushing to keep CI green.
 - **Live probes** (`tests/live/probes/`, only call llama-server):
 
 | Probe | Measures |
