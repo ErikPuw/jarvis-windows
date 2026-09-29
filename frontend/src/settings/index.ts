@@ -119,6 +119,12 @@ function formatMarkdown(md: string): string {
   // Inline code
   html = html.replace(/`([^`]+)`/g, (_m, c) => `<code class="sd-inline-code">${escapeHtml(c)}</code>`);
 
+  // Ảnh trong README (assets/screenshots/...) chỉ dành cho trang GitHub: app không phục vụ thư mục đó,
+  // giữ lại sẽ ra ảnh vỡ. Đặt SAU khối code nên ví dụ `<img>` trong code (đã escape) không bị xoá.
+  html = html.replace(/<p[^>]*>\s*<img\b[^>]*>\s*<\/p>/gi, "");
+  html = html.replace(/<img\b[^>]*>/gi, "");
+  html = html.replace(/!\[[^\]]*\]\([^)]*\)/g, "");
+
   // Headings
   html = html.replace(/^###### (.*$)/gim, "<h6>$1</h6>");
   html = html.replace(/^##### (.*$)/gim, "<h5>$1</h5>");
