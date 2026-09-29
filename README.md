@@ -414,7 +414,7 @@ rtk python -m pytest tests -q --ignore=tests/live
 
 - **Golden** (`tests/test_prompts_wired.py`): prompt của gate, classifier, offer_context, dream, self_healing và workflow phải giống từng byte với `tests/golden/`. Test này cũng kiểm tra không còn chữ prompt viết trong code, và các module import được theo mọi thứ tự.
 - **Không đụng dữ liệu thật**: test learning và test script dọn chạy trên DB và wiki tạm.
-- **CI** (`.github/workflows/ci.yml`, chạy mỗi lần push `main` và mỗi PR): `ruff check .` (rule trong `ruff.toml`), compile toàn bộ Python, `python .github/scripts/check_imports.py` (mọi `from engine... import X` phải trỏ tới tên có thật), `pytest tests --ignore=tests/live` (chỉ cài các gói test cần: openai, httpx, numpy, turbovec, rank-bm25), và `npm run build` cho frontend. Chạy lại các lệnh này trước khi push để khỏi đỏ CI.
+- **CI** (`.github/workflows/ci.yml`, chạy mỗi lần push `main` và mỗi PR): `ruff check .` (rule trong `ruff.toml`), compile toàn bộ Python, `python .github/scripts/check_imports.py` (mọi `from engine... import X` phải trỏ tới tên có thật), `pytest` (cài `requirements.txt` trừ gói chỉ chạy trên Windows, cộng `bsdtar`; bỏ qua `tests/live/` và `tests/test_live_*.py` vì cần llama-server thật), và `npm run build` cho frontend. Chạy lại các lệnh này trước khi push để khỏi đỏ CI.
 - **Probe live** (`tests/live/probes/`, chỉ gọi llama-server):
 
 | Probe | Đo gì |

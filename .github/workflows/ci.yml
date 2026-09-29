@@ -36,21 +36,24 @@ jobs:
   tests:
     name: Tests (pytest)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-      # Chỉ cài các gói mà test cần import, lấy đúng version ghi trong requirements.txt.
-      # Test cần thêm gói mới → thêm tên vào danh sách grep bên dưới.
-      - name: Cài dependency cho test
+      # bsdtar: engine/tools/archive_tool.py dùng nó để đọc zip/7z (trên Windows là System32\tar.exe)
+      - name: Cài bsdtar
+        run: sudo apt-get update -q && sudo apt-get install -y -q libarchive-tools
+      # Cài toàn bộ requirements.txt trừ gói chỉ chạy trên Windows; python-dotenv chỉ test dùng.
+      - name: Cài dependency
         run: |
-          grep -E '^(openai|httpx|numpy|turbovec|rank-bm25)\b' requirements.txt > ci-requirements.txt
-          pip install pytest -r ci-requirements.txt
-      # tests/live gọi llama-server thật nên không chạy trên CI
+          grep -vE '^(pywinauto|pywin32)' requirements.txt > ci-requirements.txt
+          pip install pytest python-dotenv -r ci-requirements.txt
+      # tests/live và tests/test_live_*.py gọi llama-server thật nên không chạy trên CI
       - name: pytest
-        run: python -m pytest tests -q --ignore=tests/live
+        run: python -m pytest tests -q --ignore=tests/live --ignore-glob='tests/test_live_*'
 
   frontend:
     name: Frontend (typecheck + build)
