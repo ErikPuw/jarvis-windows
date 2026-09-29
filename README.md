@@ -508,16 +508,6 @@ Thêm: sửa và lưu prompt (`POST /api/prompts/save`, chỉ ghi đè `prompt/*
 - Chỉ đo live trên đúng bố cục đang chạy, với đủ số lần chạy.
 - Sửa prompt thì phải chứng minh nó giống từng byte với bản cũ, hoặc nói rõ là đã đổi.
 
----
-
-## 📜 Giấy Phép & Tuyên Bố Miễn Trừ
-
-Phiên bản **JARVIS v9.9.5** là phiên bản phát triển cá nhân hóa dành cho **erikpuw**.
-
-Dự án gốc bởi [Ethan](https://ethanplus.ai).
-
-> **Disclaimer:** Đây là dự án fan hâm mộ độc lập, không liên kết với Marvel Entertainment, The Walt Disney Company, hoặc bất kỳ tổ chức thương mại nào liên quan. Tên và khái niệm JARVIS thuộc bản quyền của Marvel Entertainment.
-
 ## Kho tài liệu (`@rag`)
 
 Tài liệu lưu vào kho được tìm lại bằng lệnh tường minh. Router bắt tiền tố `@rag` bằng regex, không qua LLM, nên không nhầm với câu chat hay lệnh khác.
@@ -546,3 +536,15 @@ Lệnh (giao diện hoặc Telegram):
 - `@jobs trạng thái`
 
 Dữ liệu nằm trong `data/jobs/` (hồ sơ, CV, danh sách chờ, nhật ký đã gửi). Không nộp trên trang cần đăng nhập (TopCV, vLance, LinkedIn); không viết CV tiếng Anh; tin yêu cầu tiếng Anh cao hơn trình độ trong hồ sơ bị bỏ qua.
+
+---
+
+## 📜 Giấy Phép & Tuyên Bố Miễn Trừ
+
+Phiên bản **JARVIS v9.9.5** là phiên bản phát triển cá nhân hóa dành cho **erikpuw**.
+
+Dự án gốc bởi [Ethan](https://ethanplus.ai).
+
+> **Disclaimer:** Đây là dự án fan hâm mộ độc lập, không liên kết với Marvel Entertainment, The Walt Disney Company, hoặc bất kỳ tổ chức thương mại nào liên quan. Tên và khái niệm JARVIS thuộc bản quyền của Marvel Entertainment.
+
+
