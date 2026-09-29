@@ -5,7 +5,6 @@ import asyncio
 import logging
 import zipfile
 import io
-import httpx
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse

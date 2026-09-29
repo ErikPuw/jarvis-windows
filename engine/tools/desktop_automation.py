@@ -5,13 +5,8 @@ Chạy PowerShell để tương tác với UI Windows qua SendKeys, UIAutomation
 """
 
 import asyncio
-import json
 import logging
-import os
 import re
-import sys
-from typing import Optional
-from pathlib import Path
 
 log = logging.getLogger("jarvis.desktop_automation")
 

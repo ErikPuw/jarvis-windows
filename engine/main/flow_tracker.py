@@ -51,7 +51,7 @@ class FlowTracker:
 
     async def _send_step(self, step: dict):
         """Gửi một trạng thái bước và ghi nhận kết quả gửi WebSocket."""
-        delivered = await self._send(self._ws, {"type": "flow_step", "step": step})
+        await self._send(self._ws, {"type": "flow_step", "step": step})
 
     async def _create_step(self, label: str, status: str) -> int:
         """Luôn tạo một bước mới độc lập (dùng cho __aenter__ để tránh đụng độ giữa các bước cùng nhãn chạy song song)."""

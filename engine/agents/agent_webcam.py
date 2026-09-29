@@ -1,7 +1,4 @@
 import logging
-import json
-import asyncio
-import base64
 from typing import Any
 
 log = logging.getLogger("jarvis.agent_webcam")

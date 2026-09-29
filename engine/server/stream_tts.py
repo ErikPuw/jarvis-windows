@@ -5,10 +5,9 @@ Cổng phụ cung cấp true streaming TTS dùng edge-tts backend hoặc vieneu 
 """
 
 import os
-import re
 import logging
 import asyncio
-from typing import Optional, AsyncGenerator
+from typing import Optional
 from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException

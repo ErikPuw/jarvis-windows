@@ -8,7 +8,9 @@ from pathlib import Path
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from engine.security.policy import NetworkPolicy
+from engine.security.policy import NetworkPolicy, is_origin_allowed, parse_cors_origins
+
+_UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 # Thiết lập log bảo mật riêng
 LOG_DIR = Path(__file__).parents[2] / "logs"
@@ -37,6 +39,15 @@ def is_ip_allowed(client_host: str | None) -> bool:
     ).is_allowed(normalized_host)
 
 
+def is_request_origin_allowed(headers) -> bool:
+    """Origin của trình duyệt phải là frontend JARVIS (cùng host hoặc nằm trong JARVIS_CORS_ORIGINS)."""
+    return is_origin_allowed(
+        headers.get("origin"),
+        headers.get("host"),
+        parse_cors_origins(os.getenv("JARVIS_CORS_ORIGINS", "")),
+    )
+
+
 class SecurityFirewallMiddleware(BaseHTTPMiddleware):
     """Middleware chốt chặn bảo mật ở tầng HTTP cho FastAPI."""
     
@@ -59,6 +70,16 @@ class SecurityFirewallMiddleware(BaseHTTPMiddleware):
                     "error": "Forbidden",
                     "message": f"Truy cập bị chặn. Địa chỉ IP của bạn ({client_host}) không được phép kết nối đến máy chủ JARVIS."
                 }
+            )
+
+        if request.method in _UNSAFE_METHODS and not is_request_origin_allowed(request.headers):
+            sec_logger.warning(
+                f"Blocked cross-origin {request.method} to {request.url.path} "
+                f"from Origin: {request.headers.get('origin')}"
+            )
+            return JSONResponse(
+                status_code=403,
+                content={"error": "Forbidden", "message": "Origin không được phép."},
             )
 
         return await call_next(request)

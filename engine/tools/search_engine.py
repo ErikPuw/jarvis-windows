@@ -6,7 +6,6 @@ import re
 import time
 import unicodedata
 from pathlib import Path
-from urllib.parse import quote
 
 from engine.tools.browser import browser
 # Consolidated search engine for JARVIS
@@ -359,7 +358,6 @@ async def handle_market_query(query: str = None, **kwargs) -> str:
     If query is specific (e.g. 'gold', 'gas'), it only fetches the relevant source.
     If query is 'báo cáo giá tổng hợp', it fetches everything.
     """
-    import asyncio
     
     q = (query or "").lower()
     user_text = kwargs.get("user_text", "").lower()
@@ -565,16 +563,16 @@ async def handle_market_query(query: str = None, **kwargs) -> str:
             
             p1, p2 = _fmt_gold(m.group(1)), _fmt_gold(m.group(2))
             parts.append("#### 🟡 Giá Vàng SJC")
-            parts.append(f"| Sản phẩm | Mua | Bán |")
-            parts.append(f"| :---: | :---: | :---: |")
+            parts.append("| Sản phẩm | Mua | Bán |")
+            parts.append("| :---: | :---: | :---: |")
             parts.append(f"| Vàng SJC (1L/10L/1KG) | {p1} VNĐ/lượng. | {p2} VNĐ/lượng. |")
         else:
             m = re.search(r"SJC - Bán Lẻ\s+([\d,.]+)\s+([\d,.]+)", text, re.I)
             if m:
                 p1, p2 = m.group(1).replace(",", "."), m.group(2).replace(",", ".")
                 parts.append("#### 🟡 Giá Vàng SJC")
-                parts.append(f"| Sản phẩm | Mua | Bán |")
-                parts.append(f"| :---: | :---: | :---: |")
+                parts.append("| Sản phẩm | Mua | Bán |")
+                parts.append("| :---: | :---: | :---: |")
                 parts.append(f"| Vàng SJC (bán lẻ) | {p1} VNĐ/chỉ. | {p2} VNĐ/chỉ. |")
             else: 
                 log.warning(f"SEARCH_ENGINE: Could not parse Gold price from text: {text[:200]}...")
@@ -628,8 +626,8 @@ async def handle_market_query(query: str = None, **kwargs) -> str:
                             p2 = val2.replace(",", ".")
                             if not oil_table_started:
                                 parts.append("#### ⛽ Giá Xăng Dầu (Petrolimex)")
-                                parts.append(f"| Sản phẩm | Vùng 1 | Vùng 2 |")
-                                parts.append(f"| :---: | :---: | :---: |")
+                                parts.append("| Sản phẩm | Vùng 1 | Vùng 2 |")
+                                parts.append("| :---: | :---: | :---: |")
                                 oil_table_started = True
                             parts.append(f"| {label} | {p1} VNĐ. | {p2} VNĐ. |")
                             found = True
@@ -646,8 +644,8 @@ async def handle_market_query(query: str = None, **kwargs) -> str:
                     p2 = m.group(2).replace(",", ".")
                     if not oil_table_started:
                         parts.append("#### ⛽ Giá Xăng Dầu (Petrolimex)")
-                        parts.append(f"| Sản phẩm | Vùng 1 | Vùng 2 |")
-                        parts.append(f"| :---: | :---: | :---: |")
+                        parts.append("| Sản phẩm | Vùng 1 | Vùng 2 |")
+                        parts.append("| :---: | :---: | :---: |")
                         oil_table_started = True
                     parts.append(f"| {label} | {p1} VNĐ. | {p2} VNĐ. |")
                     oil_parsed_count += 1
@@ -667,8 +665,8 @@ async def handle_market_query(query: str = None, **kwargs) -> str:
                 num_str = f"{val:,}".replace(",", ".")
                 return f"{num_str} VNĐ"
             parts.append("#### 💵 Tỷ Giá Ngoại Tệ USD (Vietcombank)")
-            parts.append(f"| Sản phẩm | Mua | Bán |")
-            parts.append(f"| :---: | :---: | :---: |")
+            parts.append("| Sản phẩm | Mua | Bán |")
+            parts.append("| :---: | :---: | :---: |")
             parts.append(f"| Ngoại tệ USD | {_fmt_curr(m.group(1))}. | {_fmt_curr(m.group(3))}. |")
         else:
             log.warning(f"SEARCH_ENGINE: Could not parse Currency rates from text: {text[:200]}...")
@@ -691,8 +689,8 @@ async def handle_market_query(query: str = None, **kwargs) -> str:
         if m:
             p_list, p_promo = _fmt_num(m.group(1)), _fmt_num(m.group(2))
             parts.append("#### 🔥 Giá Gas Petrolimex")
-            parts.append(f"| Sản phẩm | Giá niêm yết | Giá ưu đãi |")
-            parts.append(f"| :---: | :---: | :---: |")
+            parts.append("| Sản phẩm | Giá niêm yết | Giá ưu đãi |")
+            parts.append("| :---: | :---: | :---: |")
             parts.append(f"| Gas Petrolimex (bình 12kg) | {p_list} VNĐ. | {p_promo} VNĐ. |")
         else:
             log.warning(f"SEARCH_ENGINE: Could not find Petrolimex 12kg Gas price in text: {text[:500]}...")
@@ -727,8 +725,8 @@ async def handle_market_query(query: str = None, **kwargs) -> str:
 
         if len(rows) >= 5:
             parts.append("#### 💡 Giá Điện Sinh Hoạt (bậc thang)")
-            parts.append(f"| Bậc | Mức sử dụng | Đơn giá (chưa VAT) |")
-            parts.append(f"| :---: | :---: | :---: |")
+            parts.append("| Bậc | Mức sử dụng | Đơn giá (chưa VAT) |")
+            parts.append("| :---: | :---: | :---: |")
             for idx, rng, price in rows:
                 parts.append(f"| Bậc {idx} | {rng} | {price} VNĐ/kWh. |")
             parts.append("*Giá lấy trực tiếp mỗi lần tra cứu (biểu giá đang áp dụng phát hành hóa đơn theo Quyết định 1279/QĐ-BCT). Chưa gồm thuế GTGT (8%). Đối chiếu chính thức tại evn.com.vn.*")
@@ -760,14 +758,14 @@ async def handle_market_query(query: str = None, **kwargs) -> str:
             parts.append("#### 🚰 Giá Nước Sinh Hoạt (bậc thang)")
             if len(hn_prices) >= 4:
                 parts.append("**Hà Nội**")
-                parts.append(f"| Mức sử dụng | Đơn giá (chưa VAT/phí BVMT) |")
-                parts.append(f"| :---: | :---: |")
+                parts.append("| Mức sử dụng | Đơn giá (chưa VAT/phí BVMT) |")
+                parts.append("| :---: | :---: |")
                 for rng, p in zip(hn_ranges, hn_prices[:4]):
                     parts.append(f"| {rng} | {_fmt_price(p)} VNĐ/m³. |")
             if len(hcm_prices) >= 3:
                 parts.append("**TP.HCM**")
-                parts.append(f"| Mức sử dụng | Đơn giá (chưa VAT/phí BVMT) |")
-                parts.append(f"| :---: | :---: |")
+                parts.append("| Mức sử dụng | Đơn giá (chưa VAT/phí BVMT) |")
+                parts.append("| :---: | :---: |")
                 for rng, p in zip(hcm_ranges, hcm_prices[:3]):
                     parts.append(f"| {rng} | {_fmt_price(p)} VNĐ/m³. |")
             parts.append("*Giá lấy trực tiếp mỗi lần tra cứu. Hà Nội theo Quyết định 3541/QĐ-UBND, TP.HCM theo biểu giá UBND TP.HCM. Chưa gồm thuế GTGT (5%) và phí bảo vệ môi trường (10%). Đối chiếu chính thức tại website công ty cấp nước địa phương.*")
@@ -869,7 +867,6 @@ async def handle_news_search(query: str) -> str:
     log.info(f"SEARCH_ENGINE: Executing News Search for '{rewritten}'...")
     
     # Memory recall removed to ensure deterministic web search
-    mem_hits = []
 
     try:
         results = await browser.search_news(rewritten, vietnam_only=True)
@@ -1597,7 +1594,7 @@ async def handle_vietnam_data_query(
         elif len(exact_ward_matches) == 1:
             matched_pair = exact_ward_matches[0]
         else:
-            had_ward_matches = bool(ward_matches)
+            bool(ward_matches)
             if ward_matches and len(province_matches) == 1:
                 province_context = province_matches[0][0]
                 ward_matches = [
@@ -1767,7 +1764,7 @@ async def handle_epic_free_games_query(query: str = None, **kwargs) -> str:
     if from_cache:
         output.append("⚠️ Dữ liệu từ bộ nhớ đệm (API không phản hồi).\n")
     output.append("=== GAME MIỄN PHÍ TUẦN NÀY TRÊN EPIC GAMES ===")
-    output.append(f"Nguồn: https://store.epicgames.com/vi/free-games\n")
+    output.append("Nguồn: https://store.epicgames.com/vi/free-games\n")
 
     if current_list:
         output.append("**🎮 ĐANG MIỄN PHÍ**")
@@ -1782,5 +1779,5 @@ async def handle_epic_free_games_query(query: str = None, **kwargs) -> str:
         output.append("|" + "|".join(":---:" for _ in upcoming_list) + "|")
         output.append("| " + " | ".join(f"**{game['title']}** từ {game['start']} đến {game['end']}" for game in upcoming_list) + " |")
         output.append("")
-    output.append(f"Xem thêm tại: https://store.epicgames.com/vi/free-games")
+    output.append("Xem thêm tại: https://store.epicgames.com/vi/free-games")
     return "\n".join(output)

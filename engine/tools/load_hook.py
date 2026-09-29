@@ -9,7 +9,6 @@ import asyncio
 import importlib
 import json
 import logging
-import subprocess
 import sys
 import traceback
 from collections import defaultdict
@@ -200,7 +199,7 @@ class HookLoader:
                             info.events = [e.strip().strip('"\'') for e in raw.split(",")]
                             break
                 # fallback: parse metadata JSON nếu events không có trong YAML đơn giản
-                import json, re
+                import re
                 md_match = re.search(r'"events"\s*:\s*\[(.*?)\]', hook_md.read_text(encoding="utf-8"))
                 if md_match:
                     raw_events = [e.strip().strip('"\'') for e in md_match.group(1).split(",")]

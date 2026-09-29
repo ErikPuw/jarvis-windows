@@ -17,7 +17,7 @@ log = logging.getLogger("jarvis.guardrails")
 # Một bộ phát hiện injection ngữ nghĩa thật sự (vd. LLM-based classifier) cần
 # thiết kế riêng, không phải một patch nhỏ ở đây.
 
-_ZERO_WIDTH_RE = re.compile("[​‌‍⁠﻿]")
+_ZERO_WIDTH_RE = re.compile("[\u200b‌‍⁠﻿]")
 
 
 def _normalize_for_matching(text: str) -> str:

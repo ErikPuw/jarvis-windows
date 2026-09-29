@@ -11,6 +11,7 @@ async def stream_chat(messages: list[dict], text: str, ctx) -> str:
     safe_ws_send_json = ctx.send_json
 
     from engine.server.llm_server import call_llm
+    streamer = None
     try:
         async with flow_tracker.step("Đang gọi LLM..."):
             # Gọi LLM với stream=True (luồng chat thường general không sử dụng tools)
@@ -35,13 +36,10 @@ async def stream_chat(messages: list[dict], text: str, ctx) -> str:
                 ctx.background_tasks.add(worker_task)
                 worker_task.add_done_callback(ctx.background_tasks.discard)
 
-           
-            last_chunk = None
             async for chunk in stream:
                 if getattr(ws, "cancel_requested", False):
                     log.info("Response generation cancelled by client request")
                     break
-                last_chunk = chunk
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta.content or ""
@@ -126,6 +124,13 @@ async def stream_chat(messages: list[dict], text: str, ctx) -> str:
 
     except Exception as e:
         log.error(f"LLM streaming error: {e}")
+        # Stream LLM đứt giữa chừng: phải dừng VoiceStreamer, nếu không 2 worker TTS
+        # treo mãi ở queue.get() và UI kẹt ở trạng thái "speaking" (status idle không bao giờ gửi).
+        if streamer is not None:
+            try:
+                await streamer.stop(clear_queue=True)
+            except Exception as stop_err:
+                log.warning(f"VoiceStreamer stop after LLM error failed: {stop_err}")
         fallback = "Xin lỗi tôi đang gặp lỗi kết nối với hệ thống ngôn ngữ LLM."
         setattr(ws, "pending_ask_user", "")
         setattr(ws, "pending_action_run", "")

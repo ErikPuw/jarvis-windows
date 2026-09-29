@@ -103,6 +103,30 @@ def parse_cors_origins(raw_origins: str) -> tuple[str, ...]:
     return tuple(origins) or DEFAULT_CORS_ORIGINS
 
 
+def is_origin_allowed(origin: str | None, host: str | None, allowed_origins: Iterable[str]) -> bool:
+    """Chặn trang web lạ trong trình duyệt gọi vào JARVIS (CSRF / Cross-Site WebSocket Hijacking).
+
+    Firewall IP không đủ: một trang web độc hại mở trên chính máy này kết nối tới
+    ws://127.0.0.1:8340 vẫn mang IP loopback. Trình duyệt luôn gửi header Origin cho
+    WebSocket và cho POST/PUT/DELETE khác origin, nên kiểm tra nó là đủ. Client không
+    phải trình duyệt (Telegram bot, httpx, curl) không gửi Origin và vẫn được cho qua.
+    """
+
+    if not origin:
+        return True
+    origin = origin.strip().rstrip("/")
+    if origin.lower() == "null":
+        return False
+    if origin in set(allowed_origins):
+        return True
+    try:
+        netloc = urlsplit(origin).netloc.lower()
+    except ValueError:
+        return False
+    # Cùng origin: trang được phục vụ từ chính server này (vd. điện thoại trong LAN mở https://<ip>:8340).
+    return bool(netloc) and netloc == (host or "").strip().lower()
+
+
 def resolve_file_under(root: Path, raw_path: str) -> Path:
     """Resolve an existing regular file while preventing escape from ``root``."""
 

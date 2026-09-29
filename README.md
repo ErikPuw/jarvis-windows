@@ -51,7 +51,7 @@ JARVIS là trợ lý AI cá nhân chạy hoàn toàn trên máy Windows, lấy c
 | **Bộ nhớ & Obsidian** | SQLite + FTS5 (`data/jarvis.db`) là nguồn gốc. Obsidian Vault (`data/wiki/`) là bản chiếu một chiều. Memory Center trong WebUI là nơi sửa duy nhất |
 | **Dream Cycle** | Chạy lúc rảnh ban đêm để tóm tắt và dọn hội thoại, kết quả agent, wiki cũ. Luôn sao lưu trước khi gộp |
 | **Self-Healing** | Quét log mỗi 60 giây, phân loại lỗi và ghi vào `Errors.md`. Chỉ nhờ Goose sửa code khi ngài đã duyệt |
-| **An ninh** | Guardrails chống prompt injection, firewall IP cho WebSocket, theo dõi kết nối |
+| **An ninh** | Guardrails chống prompt injection, firewall IP + kiểm tra Origin (chống CSRF/WebSocket hijacking) cho REST và WebSocket, theo dõi kết nối |
 
 ---
 
@@ -334,7 +334,7 @@ cd frontend && npm run dev     # frontend, mở terminal riêng
 | `USER_NAME` / `HONORIFIC` | `erikpuw` / `thưa ngài` | Cá nhân hóa |
 | `REDIS_URL` | `redis://localhost:6379` | Redis |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_ALLOWED_CHAT_IDS` | tùy chọn | Telegram Bot |
-| `JARVIS_CORS_ORIGINS` | `*` | CORS |
+| `JARVIS_CORS_ORIGINS` | `localhost:5173`, `localhost:8340` | Danh sách origin (phân cách dấu phẩy) được phép gọi API/WebSocket từ trình duyệt. `*` bị bỏ qua. Trang cùng host với server (`https://<ip>:8340`) luôn được phép |
 | `RAG_WATCH_FOLDER` | `data/documents` | Thư mục RAG tự theo dõi |
 | `DREAM_ENABLED` | `true` | Bật/tắt Dream |
 | `DREAM_RETENTION_DAYS` | `14` | Số ngày giữ nguyên dữ liệu trước khi Dream gộp |
@@ -346,7 +346,7 @@ cd frontend && npm run dev     # frontend, mở terminal riêng
 
 ### 📱 Truy cập từ xa qua Tailscale
 1. Cài Tailscale trên máy chạy JARVIS và trên điện thoại, đăng nhập **cùng một tài khoản**.
-2. Trên máy chủ: chạy `npm run dev -- --host` trong `frontend/`, và đặt `JARVIS_CORS_ORIGINS=*` (hoặc IP Tailscale) trong `.env`.
+2. Trên máy chủ: chạy `npm run dev -- --host` trong `frontend/`, và đặt `JARVIS_CORS_ORIGINS=http://<IP-Tailscale-của-PC>:5173` trong `.env` (không dùng `*`: giá trị này bị bỏ qua, và WebSocket sẽ từ chối origin không có trong danh sách).
 3. Trên điện thoại: mở Safari hoặc Chrome, vào `http://<IP-Tailscale-của-PC>:5173`.
 
 Cách này không cần mở port trên router và không lộ IP ra ngoài.

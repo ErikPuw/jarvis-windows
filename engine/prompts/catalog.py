@@ -1,6 +1,5 @@
 """Module duy nhất đọc và quản lý danh mục agents & tools từ prompt/tools.md và prompt/agents.md (spec 2026-09-25 mục 1)."""
 from pathlib import Path
-import re
 from engine.orchestrator.registry import AGENT_REGISTRY
 
 _PROMPT_DIR = Path(__file__).resolve().parents[2] / "prompt"

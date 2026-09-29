@@ -108,7 +108,6 @@ def num_to_vietnamese_words(num: int) -> str:
         chunks.append(temp % 1000)
         temp //= 1000
         
-    levels = ["", "nghìn", "triệu", "tỷ"]
     read_parts = []
     
     for i in range(len(chunks) - 1, -1, -1):

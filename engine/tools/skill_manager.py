@@ -10,11 +10,10 @@ Handles:
 
 import logging
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional
 from dataclasses import dataclass, field
 import re
 import types
-import inspect
 
 log = logging.getLogger("jarvis.skill_manager")
 
@@ -83,7 +82,7 @@ class SkillManager:
         """Create skills and commands directories if they don't exist"""
         SKILLS_DIR.mkdir(parents=True, exist_ok=True)
         COMMANDS_DIR.mkdir(parents=True, exist_ok=True)
-        log.info(f"Skill directories ready")
+        log.info("Skill directories ready")
 
     def _parse_markdown_frontmatter(self, content: str) -> tuple[dict, str]:
         """Parse YAML frontmatter from markdown file"""
@@ -180,7 +179,7 @@ class SkillManager:
     def scan_skills(self, recursive: bool = True) -> int:
         """Scan and load skills from skills/ — chỉ load file SKILL.md, bỏ rác."""
         if not SKILLS_DIR.exists():
-            log.warning(f"Skills directory not found")
+            log.warning("Skills directory not found")
             return 0
 
         pattern = "**/SKILL.md" if recursive else "SKILL.md"
@@ -199,7 +198,7 @@ class SkillManager:
     def scan_commands(self, recursive: bool = True) -> int:
         """Scan and load all commands from commands/ directory"""
         if not COMMANDS_DIR.exists():
-            log.warning(f"Commands directory not found")
+            log.warning("Commands directory not found")
             return 0
 
         pattern = "**/*.md" if recursive else "*.md"

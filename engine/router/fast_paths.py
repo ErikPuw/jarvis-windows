@@ -2,7 +2,6 @@
 import logging
 import re
 
-from engine.orchestrator.registry import AGENT_REGISTRY
 
 log = logging.getLogger("jarvis.router.fast_paths")
 

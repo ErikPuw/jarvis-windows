@@ -7,7 +7,7 @@ from typing import Optional, Any, List, Dict
 from collections import Counter
 
 import numpy as np
-from turbovec import TurboQuantIndex, IdMapIndex
+from turbovec import IdMapIndex
 from rank_bm25 import BM25Okapi
 
 log = logging.getLogger("jarvis.rag_engine")

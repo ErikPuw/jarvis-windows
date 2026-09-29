@@ -2,7 +2,6 @@
 JARVIS Execution Trace Logger — Lưu vết chi tiết thực thi của các tool/action dưới dạng JSON.
 """
 
-import os
 import json
 import logging
 import time

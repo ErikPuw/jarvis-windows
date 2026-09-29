@@ -3,10 +3,8 @@ import json
 import logging
 import re
 import subprocess
-import time
 import unicodedata
 from pathlib import Path
-from typing import Optional
 
 log = logging.getLogger("jarvis.media_search")
 
@@ -541,8 +539,6 @@ async def search_phim(query: str, max_results: int = 8) -> list[dict]:
         log.info(f"Direct URL failed, falling back to search: {query}")
 
         # Step 2: Search fallback
-        from scrapling.fetchers import AsyncFetcher
-        import json
 
         encoded = query.replace(" ", "+")
         url = f"https://hhpanda.st/?s={encoded}"
@@ -697,21 +693,21 @@ async def _fetch_phim_playwright(url: str, max_results: int) -> list[dict]:
             await asyncio.sleep(2)  # extra wait for JS rendering
 
             # Extract movie items via evaluate using updated selectors
-            items = await page.evaluate(f"""
-                () => {{
+            items = await page.evaluate("""
+                () => {
                     const results = [];
                     const seen = new Set();
                     const anchors = Array.from(document.querySelectorAll('a.halim-thumb, .halim-item-list a, article a'));
                     
-                    for (const a of anchors) {{
+                    for (const a of anchors) {
                         const href = a.href || '';
                         if (!href) continue;
                         
                         let title = a.title || a.getAttribute('title') || '';
-                        if (!title) {{
+                        if (!title) {
                             const h2 = a.querySelector('h2, .title, figcaption');
                             if (h2) title = h2.textContent || '';
-                        }}
+                        }
                         if (!title) title = a.textContent || '';
                         
                         title = title.replace(/\\s+/g, ' ').trim();
@@ -730,9 +726,9 @@ async def _fetch_phim_playwright(url: str, max_results: int) -> list[dict]:
 
                         const imgEl = a.querySelector('img');
                         let img = '';
-                        if (imgEl) {{
+                        if (imgEl) {
                             img = imgEl.getAttribute('data-src') || imgEl.getAttribute('data-lazy-src') || imgEl.src || '';
-                        }}
+                        }
 
                         // Lấy thể loại
                         const genreEl = a.querySelector('.halim-cat, .genre, span[class*="cat"]');
@@ -752,7 +748,7 @@ async def _fetch_phim_playwright(url: str, max_results: int) -> list[dict]:
                         const slugMatch = href.match(/hhpanda\\.st\\/([^/?#]+)/);
                         const slug = slugMatch ? slugMatch[1] : '';
 
-                        results.push({{
+                        results.push({
                             id: href,
                             title: title,
                             url: href,
@@ -762,10 +758,10 @@ async def _fetch_phim_playwright(url: str, max_results: int) -> list[dict]:
                             slug: slug,
                             source: 'phim',
                             episode_status: episode_status,
-                        }});
-                    }}
+                        });
+                    }
                     return results;
-                }}
+                }
             """)
             await browser.close()
             # Sắp xếp phần mới nhất lên đầu
