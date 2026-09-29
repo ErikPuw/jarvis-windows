@@ -60,8 +60,13 @@
   <div id="command-container">
     <div id="chat-history"></div>
     <div id="command-suggest" class="hidden"></div>
+    <div id="status-row">
+      <div id="status-orb" aria-hidden="true"></div>
+      <div id="status-text"></div>
+    </div>
     <div id="command-bar">
       <div id="command-bar-inner">
+        <span class="cmd-beam" aria-hidden="true"></span>
         <button id="btn-upload" title="Upload File"></button>
         <div id="file-pinned-container" style="display:none">
           <span id="file-pinned-name"></span>
@@ -70,11 +75,10 @@
         <textarea id="command-input" placeholder="Nhập nội dung, / hành động, @ gọi tên" autocomplete="off"
           spellcheck="false" rows="1"></textarea>
         <input type="file" id="file-upload" style="display:none" />
-        <button id="cmd-send" title="Send (Enter)"></button>
+        <span id="cmd-send-wrap"><button id="cmd-send" title="Send (Enter)"></button></span>
       </div>
     </div>
   </div>
-  <div id="status-text"></div>
   <div id="jarvis-label">JARVIS</div>
   <div id="error-text"></div>
   <!-- History Panel -->

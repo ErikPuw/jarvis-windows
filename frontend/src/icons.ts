@@ -71,11 +71,6 @@ export function setStatusIcon(host: Element, status: string, prefix: "flow" | "t
   wrap.className = `status-glyph ${prefix}-status-icon ${prefix}-${variant}`;
 }
 
-// Static glyph buttons (no state to morph between).
-for (const [id, icon] of [["btn-slash", Slash], ["btn-mention", AtSign]] as const) {
-  document.getElementById(id)?.replaceChildren(makeIcon(icon, 14, 2));
-}
-
 for (const s of SPECS) {
   const btn = document.getElementById(s.btn);
   const watched = s.watch ? document.getElementById(s.watch) : btn;

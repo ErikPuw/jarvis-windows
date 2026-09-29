@@ -2094,16 +2094,6 @@ const btnMenu = document.getElementById("btn-menu")!;
 const menuDropdown = document.getElementById("menu-dropdown")!;
 const btnRestart = document.getElementById("btn-restart")!;
 
-// Command-bar shortcut buttons: insert "/" or "@" so the existing suggestion logic
-// (input listener) opens the command / agent list.
-for (const [id, ch] of [["btn-slash", "/"], ["btn-mention", "@"]] as const) {
-  document.getElementById(id)!.addEventListener("click", () => {
-    commandInput.value += ch;
-    commandInput.focus();
-    commandInput.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-}
-
 btnMute.addEventListener("click", (e) => {
   e.stopPropagation();
   isMuted = !isMuted;

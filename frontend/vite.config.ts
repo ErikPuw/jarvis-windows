@@ -4,16 +4,17 @@ import path from "path";
 
 export default defineConfig(() => {
   const rootDir = typeof import.meta.dirname !== "undefined" ? path.resolve(import.meta.dirname, "..") : process.cwd();
-  // Single version source (CHANGELOG.md "Quy tắc đánh số"): the repo-root VERSION file.
+  // Single version source (README "Quy tắc đánh số"): the repo-root VERSION file.
   const appVersion = readFileSync(path.join(rootDir, "VERSION"), "utf-8").trim();
   return {
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
     },
     server: {
-      host: true,
+      // Chỉ loopback: qua proxy này backend luôn thấy IP 127.0.0.1 nên mọi máy vào được 5173 đều né firewall IP.
+      // Cần điện thoại/LAN thì chạy `npm run dev -- --host` (tạm thời, biết rõ hệ quả).
+      host: "127.0.0.1",
       port: 5173,
-      allowedHosts: true,
       proxy: {
         "/ws": {
           target: "https://127.0.0.1:8340",

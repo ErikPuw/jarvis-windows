@@ -10,14 +10,17 @@
   },
   "devDependencies": {
     "@types/three": "^0.184.1",
-    "typescript": "^7.1.0-dev.20260728.1",
+    "typescript": "^7.0.2",
     "vite": "^8.1.5"
   },
   "dependencies": {
     "@fontsource/oswald": "^5.3.0",
     "@mediapipe/tasks-vision": "^0.10.35",
+    "@paper-design/shaders": "^0.0.81",
+    "bot-avatars": "^0.1.1",
     "lucide": "^1.48.0",
     "morphicons": "^1.7.1",
+    "thinking-orbs": "^0.3.2",
     "three": "^0.184.0"
   }
 }

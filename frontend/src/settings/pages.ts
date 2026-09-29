@@ -496,7 +496,7 @@ const mcpPage = (): string => `
         </div>
       </div>
 
-      <div class="sd-card sd-mcp-add-card style="margin-top: 6px;">
+      <div class="sd-card sd-mcp-add-card" style="margin-top: 6px;">
         <h4>Thêm máy chủ MCP</h4>
         <div class="sd-field-note">Loại <code>stdio</code> chạy một lệnh ngay trên máy này: chỉ thêm lệnh bạn tin tưởng. Chỉ thêm và bật/tắt được từ chính máy chạy JARVIS.</div>
         <div class="form-group">

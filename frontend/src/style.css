@@ -733,13 +733,15 @@ body {
 }
 
 /* Hidden: only the status row (orb + label) stays; chat and bar fade away. */
-#command-container:not(.visible) { pointer-events: none; }
+#command-container:not(.visible) {
+  pointer-events: none;
+}
 
-#command-container > :not(#status-row) {
+#command-container> :not(#status-row) {
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-#command-container:not(.visible) > :not(#status-row) {
+#command-container:not(.visible)> :not(#status-row) {
   opacity: 0;
   transform: translateY(20px);
   pointer-events: none;
@@ -852,10 +854,12 @@ body {
   color: rgba(255, 255, 255, 0.85);
   border-bottom-left-radius: 4px;
   width: fit-content !important;
-  min-width: 240px; /* same as the agent card below, so the stack lines up */
+  min-width: 240px;
+  /* same as the agent card below, so the stack lines up */
   max-width: 44% !important;
   padding: 8px 12px !important;
-  margin-bottom: 0; /* #chat-history gap already spaces bubbles */
+  margin-bottom: 0;
+  /* #chat-history gap already spaces bubbles */
   border-radius: 12px;
   font-family: inherit;
   font-size: 12px;
@@ -872,7 +876,7 @@ body {
   overflow: hidden;
 }
 
-.chat-bubble.system-flow .flow-progress > i {
+.chat-bubble.system-flow .flow-progress>i {
   display: block;
   height: 100%;
   width: 0;
@@ -880,8 +884,13 @@ body {
   transition: width 0.3s ease;
 }
 
-.chat-bubble.system-flow[data-status="completed"] .flow-progress > i { background: #22c55e; }
-.chat-bubble.system-flow[data-status="failed"] .flow-progress > i { background: #ef4444; }
+.chat-bubble.system-flow[data-status="completed"] .flow-progress>i {
+  background: #22c55e;
+}
+
+.chat-bubble.system-flow[data-status="failed"] .flow-progress>i {
+  background: #ef4444;
+}
 
 /* timeline: one dot per step on a vertical rail */
 .chat-bubble.system-flow .flow-content-inline {
@@ -890,7 +899,9 @@ body {
   border-left: 1px solid rgba(148, 163, 184, 0.32);
 }
 
-.chat-bubble.system-flow .flow-step-row { position: relative; }
+.chat-bubble.system-flow .flow-step-row {
+  position: relative;
+}
 
 .chat-bubble.system-flow .flow-step-row::before {
   content: "";
@@ -904,8 +915,16 @@ body {
   border: 1px solid #334155;
 }
 
-.chat-bubble.system-flow .flow-step-row[data-status="completed"]::before { background: #22c55e; border-color: #22c55e; }
-.chat-bubble.system-flow .flow-step-row[data-status="failed"]::before { background: #ef4444; border-color: #ef4444; }
+.chat-bubble.system-flow .flow-step-row[data-status="completed"]::before {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+
+.chat-bubble.system-flow .flow-step-row[data-status="failed"]::before {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
 .chat-bubble.system-flow .flow-step-row[data-status="active"]::before {
   background: #38bdf8;
   border-color: #38bdf8;
@@ -913,12 +932,24 @@ body {
 }
 
 @keyframes flow-dot {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25); }
-  50% { box-shadow: 0 0 0 5px rgba(56, 189, 248, 0); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px rgba(56, 189, 248, 0);
+  }
 }
 
-.chat-bubble.system-flow .flow-step-row[data-status="pending"] .flow-step-label { color: rgba(148, 163, 184, 0.7); }
-.chat-bubble.system-flow .flow-step-row[data-status="active"] .flow-step-label { color: #e2f3ff; }
+.chat-bubble.system-flow .flow-step-row[data-status="pending"] .flow-step-label {
+  color: rgba(148, 163, 184, 0.7);
+}
+
+.chat-bubble.system-flow .flow-step-row[data-status="active"] .flow-step-label {
+  color: #e2f3ff;
+}
 
 .chat-bubble.system-flow .flow-step-detail:not(:empty) {
   margin-left: 6px;
@@ -926,10 +957,14 @@ body {
   font-size: 11px;
 }
 
-.chat-bubble.system-flow .flow-step-detail:not(:empty)::before { content: "· "; }
+.chat-bubble.system-flow .flow-step-detail:not(:empty)::before {
+  content: "· ";
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .chat-bubble.system-flow .flow-step-row[data-status="active"]::before { animation: none; }
+  .chat-bubble.system-flow .flow-step-row[data-status="active"]::before {
+    animation: none;
+  }
 }
 
 .chat-bubble.system-flow .flow-step-row {
@@ -975,7 +1010,10 @@ body {
   transition: color 0.2s;
 }
 
-.chat-bubble.system-flow .flow-accordion-summary { gap: 8px; flex: 1; }
+.chat-bubble.system-flow .flow-accordion-summary {
+  gap: 8px;
+  flex: 1;
+}
 
 .chat-bubble.system-flow .flow-step-count {
   font-size: 11px;
@@ -1587,9 +1625,11 @@ body {
     min-width: 0 !important;
     width: fit-content !important;
   }
+
   .chat-bubble.system-flow.flow-expanded {
     max-width: 90% !important;
   }
+
   .chat-bubble.system-flow .flow-summary-label {
     max-width: 160px;
     overflow: hidden;
@@ -1663,6 +1703,7 @@ body {
   .chat-bubble.system-flow {
     max-width: 88% !important;
   }
+
   .chat-bubble.system-flow .flow-summary-label {
     max-width: 120px;
   }
@@ -3486,7 +3527,8 @@ body {
 /* agent header: lucide icon tile + name / task, status glyph on the right
    (the surrounding chat bubble already draws the frame) */
 .interactive-card.tracker-card:has(.tracker-agent-icon) {
-  min-width: 218px; /* + bubble padding/border = 240px, like the flow bubble */
+  min-width: 218px;
+  /* + bubble padding/border = 240px, like the flow bubble */
   margin: 0;
   padding: 0;
 }
@@ -3507,7 +3549,10 @@ body {
   background: rgba(14, 165, 233, 0.12);
 }
 
-.tracker-texts { flex: 1; min-width: 0; }
+.tracker-texts {
+  flex: 1;
+  min-width: 0;
+}
 
 .tracker-name {
   font-size: 12.5px;
@@ -3516,7 +3561,10 @@ body {
   line-height: 1.25;
 }
 
-.tracker-texts .tracker-label { color: rgba(148, 163, 184, 0.95); line-height: 1.25; }
+.tracker-texts .tracker-label {
+  color: rgba(148, 163, 184, 0.95);
+  line-height: 1.25;
+}
 
 .tracker-icon-container {
   flex-shrink: 0;
@@ -3642,7 +3690,8 @@ body {
   position: absolute;
   right: 0;
   bottom: calc(100% - 20px);
-  z-index: 11; /* above #chat-history (10) so it stays clickable */
+  z-index: 11;
+  /* above #chat-history (10) so it stays clickable */
   width: 56px;
   height: 56px;
   padding: 0;
@@ -3723,12 +3772,19 @@ body {
 }
 
 @keyframes fc-radar {
-  from { box-shadow: 0 0 0 0 rgba(125, 211, 252, 0.7); }
-  to { box-shadow: 0 0 0 7px rgba(125, 211, 252, 0); }
+  from {
+    box-shadow: 0 0 0 0 rgba(125, 211, 252, 0.7);
+  }
+
+  to {
+    box-shadow: 0 0 0 7px rgba(125, 211, 252, 0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #jarvis-clock .fc-colon i { animation: none; }
+  #jarvis-clock .fc-colon i {
+    animation: none;
+  }
 }
 
 #jarvis-clock .fc {
@@ -3754,7 +3810,7 @@ body {
   z-index: 3;
 }
 
-#jarvis-clock .fc > div {
+#jarvis-clock .fc>div {
   position: absolute;
   left: 0;
   right: 0;
@@ -3808,19 +3864,28 @@ body {
 }
 
 @keyframes fc-fold {
-  to { transform: rotateX(-90deg); opacity: 0.3; }
+  to {
+    transform: rotateX(-90deg);
+    opacity: 0.3;
+  }
 }
 
 @keyframes fc-drop {
-  to { transform: rotateX(0deg); }
+  to {
+    transform: rotateX(0deg);
+  }
 }
 
 @keyframes fc-in {
-  from { opacity: 0; }
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes fc-out {
-  to { opacity: 0; }
+  to {
+    opacity: 0;
+  }
 }
 
 @media (max-width: 768px) {
@@ -3854,7 +3919,9 @@ body {
   pointer-events: none;
 }
 
-#command-container:not(.visible) #status-row { justify-content: center; }
+#command-container:not(.visible) #status-row {
+  justify-content: center;
+}
 
 #status-orb {
   width: 28px;
@@ -3863,7 +3930,9 @@ body {
   flex-shrink: 0;
 }
 
-#status-orb canvas { display: block; }
+#status-orb canvas {
+  display: block;
+}
 
 /* beam: a thin light travelling round the bar border (idle: faint, thinking: bright) */
 @property --beam-a {
@@ -3895,34 +3964,26 @@ body {
 
 /* listening / speaking hand the edge to the voice glow (phase 3) */
 #command-bar-inner[data-state="listening"] .cmd-beam,
-#command-bar-inner[data-state="speaking"] .cmd-beam { opacity: 0; }
-
-@keyframes cmd-beam-spin { to { --beam-a: 360deg; } }
-
-@media (prefers-reduced-motion: reduce) {
-  #command-bar-inner .cmd-beam { animation: none; }
+#command-bar-inner[data-state="speaking"] .cmd-beam {
+  opacity: 0;
 }
 
-/* shortcut / mic buttons look like the attach button */
-#btn-slash,
-#btn-mention {
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(14, 165, 233, 0.4);
-  cursor: pointer;
-  transition: color 0.2s, transform 0.2s;
+@keyframes cmd-beam-spin {
+  to {
+    --beam-a: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #command-bar-inner .cmd-beam {
+    animation: none;
+  }
 }
 
 #btn-slash:hover,
-#btn-mention:hover { color: rgba(14, 165, 233, 0.9); }
+#btn-mention:hover {
+  color: rgba(14, 165, 233, 0.9);
+}
 
 /* send: paper-plane icon centred in a liquid-metal ring (src/metal-ring.ts) */
 #cmd-send-wrap {
@@ -3945,7 +4006,11 @@ body {
   mask: radial-gradient(circle closest-side, transparent 80%, #000 84%);
 }
 
-#cmd-send-wrap canvas { display: block; width: 100%; height: 100%; }
+#cmd-send-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 
 #cmd-send-wrap #cmd-send {
   position: relative;
@@ -3959,15 +4024,24 @@ body {
 }
 
 @media (max-width: 768px) {
-  #cmd-send-wrap { width: 34px; height: 34px; }
-  #cmd-send-wrap #cmd-send { width: 30px; height: 30px; }
+  #cmd-send-wrap {
+    width: 34px;
+    height: 34px;
+  }
+
+  #cmd-send-wrap #cmd-send {
+    width: 30px;
+    height: 30px;
+  }
 }
 
 /* ── Chat bubbles with a bot avatar (src/bubble-avatar.ts) ────────────── */
 .chat-bubble.assistant.has-head {
-  margin-left: 38px; /* room for the avatar, which sits outside the bubble */
+  margin-left: 38px;
+  /* room for the avatar, which sits outside the bubble */
   padding: 6px 12px 8px;
-  border-radius: 4px 12px 12px 12px; /* the sharp corner points at the avatar */
+  border-radius: 4px 12px 12px 12px;
+  /* the sharp corner points at the avatar */
   background: rgba(6, 8, 14, 0.55);
   border-color: rgba(14, 165, 233, 0.16);
   color: rgba(226, 243, 255, 0.95);
@@ -4004,23 +4078,24 @@ body {
 }
 
 .bubble-name {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.2px;
-  color: #7dd3fc;
+  display: none !important;
 }
 
 .chat-bubble.user {
-  border-radius: 12px 12px 4px 12px; /* mirror of the assistant bubble */
+  border-radius: 12px 12px 4px 12px;
+  /* mirror of the assistant bubble */
 }
 
 
 /* status label motion (src/status-label.ts): slide on change, roll in after 10 s of quiet */
-#status-row { position: relative; }
+#status-row {
+  position: relative;
+}
 
 #status-text {
   max-width: 280px;
-  padding: 3px 0; /* room for Vietnamese diacritics inside overflow:hidden */
+  padding: 3px 0;
+  /* room for Vietnamese diacritics inside overflow:hidden */
   overflow: hidden;
   transition: max-width 0.4s cubic-bezier(0.3, 0.7, 0.2, 1), opacity 0.3s ease, margin 0.4s ease;
 }
@@ -4032,11 +4107,25 @@ body {
   white-space: nowrap;
 }
 
-#status-orb { transition: opacity 0.35s ease, transform 0.35s ease; }
+#status-orb {
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
 
-#status-row.quiet #status-text { max-width: 0; opacity: 0; margin-left: -6px; }
-#status-row.quiet #status-orb { opacity: 0.45; transform: scale(0.8); }
+#status-row.quiet #status-text {
+  max-width: 0;
+  opacity: 0;
+  margin-left: -6px;
+}
+
+#status-row.quiet #status-orb {
+  opacity: 0.45;
+  transform: scale(0.8);
+}
 
 @media (prefers-reduced-motion: reduce) {
-  #status-text, #status-orb { transition: none; }
+
+  #status-text,
+  #status-orb {
+    transition: none;
+  }
 }

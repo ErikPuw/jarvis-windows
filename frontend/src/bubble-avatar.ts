@@ -123,7 +123,7 @@ export function attachBubbleHead(bubble: HTMLElement): void {
   head.className = "bubble-head";
   const label = document.createElement("span");
   label.className = "bubble-name";
-  head.append(a.host, label);
+  head.append(a.host);
   bubble.prepend(head);
   bubble.classList.add("has-head");
   live = a;
@@ -132,8 +132,6 @@ export function attachBubbleHead(bubble: HTMLElement): void {
 }
 
 export function setBubbleName(bubble: HTMLElement, name: string): void {
-  const el = bubble.querySelector(":scope > .bubble-head > .bubble-name");
-  if (el && el.textContent !== name) el.textContent = name;
 }
 
 /** Replaces a bubble's content but keeps its avatar/name header. */
