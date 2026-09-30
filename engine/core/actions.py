@@ -624,6 +624,9 @@ async def handle_user_intent_with_tools(user_text: str, add_tools: str, conversa
 
             results_text = "\n\n".join(results_list)
 
+        if flow_agents:
+            await flow_agents.complete_all_active()
+
         # --- Gọi LLM Vòng 2 tổng hợp ---
         results_text = clean_and_truncate_news_results(results_text)
         # Truncate đơn giản nếu quá dài — KHÔNG dùng RTK vì filter 'log' làm mất nội dung tin tức/dữ liệu thực

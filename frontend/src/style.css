@@ -790,10 +790,9 @@ body {
   border: 1px solid rgba(14, 165, 233, 0.15);
   color: rgba(255, 255, 255, 0.85);
   border-bottom-left-radius: 4px;
-  width: fit-content !important;
-  min-width: 240px;
-  /* same as the agent card below, so the stack lines up */
-  max-width: 44% !important;
+  width: 240px !important;
+  max-width: 90% !important;
+  box-sizing: border-box;
   padding: 8px 12px !important;
   margin-bottom: 0;
   /* #chat-history gap already spaces bubbles */
@@ -945,11 +944,15 @@ body {
   font-size: 12.5px;
   font-weight: 500;
   transition: color 0.2s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .chat-bubble.system-flow .flow-accordion-summary {
   gap: 8px;
   flex: 1;
+  min-width: 0;
 }
 
 .chat-bubble.system-flow .flow-step-count {
@@ -993,9 +996,10 @@ body {
   margin-top: 3px;
 }
 
-/* Khi expanded, cho phép bubble tự dãn rộng theo nội dung */
+/* Khi expanded, giữ nguyên chiều rộng cố định */
 .chat-bubble.system-flow.flow-expanded {
-  max-width: 58% !important;
+  width: 240px !important;
+  max-width: 90% !important;
 }
 
 .chat-bubble.user {
@@ -1557,19 +1561,18 @@ body {
     padding: 8px 14px;
   }
 
-  /* System-flow bubble: cho phép rộng hơn trên mobile */
+  /* System-flow bubble: cố định kích thước trên mobile */
   .chat-bubble.system-flow {
-    max-width: 82% !important;
-    min-width: 0 !important;
-    width: fit-content !important;
+    width: 240px !important;
+    max-width: 92% !important;
   }
 
   .chat-bubble.system-flow.flow-expanded {
-    max-width: 90% !important;
+    width: 240px !important;
+    max-width: 92% !important;
   }
 
   .chat-bubble.system-flow .flow-summary-label {
-    max-width: 160px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
@@ -1639,11 +1642,14 @@ body {
   }
 
   .chat-bubble.system-flow {
-    max-width: 88% !important;
+    width: 100% !important;
+    max-width: 94% !important;
   }
 
   .chat-bubble.system-flow .flow-summary-label {
-    max-width: 120px;
+    max-width: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
@@ -2719,21 +2725,45 @@ body {
 }
 
 @keyframes fluid-blob-1 {
-  0% { transform: translate(0, -2px) scale(0.9); }
-  50% { transform: translate(5px, 2px) scale(1.15); }
-  100% { transform: translate(1px, -3px) scale(0.95); }
+  0% {
+    transform: translate(0, -2px) scale(0.9);
+  }
+
+  50% {
+    transform: translate(5px, 2px) scale(1.15);
+  }
+
+  100% {
+    transform: translate(1px, -3px) scale(0.95);
+  }
 }
 
 @keyframes fluid-blob-2 {
-  0% { transform: translate(0, 2px) scale(1.1); }
-  50% { transform: translate(-5px, -2px) scale(0.85); }
-  100% { transform: translate(-1px, 3px) scale(1.05); }
+  0% {
+    transform: translate(0, 2px) scale(1.1);
+  }
+
+  50% {
+    transform: translate(-5px, -2px) scale(0.85);
+  }
+
+  100% {
+    transform: translate(-1px, 3px) scale(1.05);
+  }
 }
 
 @keyframes fluid-blob-3 {
-  0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-3px, 3px) scale(1.2); }
-  100% { transform: translate(3px, -2px) scale(0.9); }
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate(-3px, 3px) scale(1.2);
+  }
+
+  100% {
+    transform: translate(3px, -2px) scale(0.9);
+  }
 }
 
 /* Fallback typing-dot */
@@ -2755,12 +2785,14 @@ body {
 }
 
 @keyframes typing-bounce {
+
   0%,
   80%,
   100% {
     transform: scale(0.6);
     opacity: 0.4;
   }
+
   40% {
     transform: scale(1.2);
     opacity: 1;
@@ -3726,7 +3758,7 @@ body {
   #jarvis-mascot {
     width: 48px;
     height: 48px;
-	right: -4px;
+    right: -4px;
   }
 }
 
