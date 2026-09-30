@@ -1206,21 +1206,10 @@ function updateFlowMonitor() {
   }
 
   activeFlowBubble.style.display = "block";
-  // Tự động mở rộng khi có các bước đang chạy để người dùng theo dõi
-  if (isBusy || currentState === "thinking" || currentState === "working" || activeStep) {
-    activeFlowBubble.classList.add("flow-expanded");
-  }
 
   // Tự động cuộn xuống dưới
   requestAnimationFrame(() => {
     scrollToBottomIfNeeded();
-  });
-}
-
-function collapseFlowTrackers() {
-  const expandedFlows = chatHistory.querySelectorAll<HTMLElement>(".chat-bubble.system-flow.flow-expanded");
-  expandedFlows.forEach((flow) => {
-    flow.classList.remove("flow-expanded");
   });
 }
 
@@ -1638,10 +1627,6 @@ function updateInputControls(state: State) {
 }
 
 function transition(newState: State, message?: string) {
-  if (newState === "idle") {
-    collapseFlowTrackers();
-  }
-
   let effectiveState = newState;
   if (newState === "idle" && !isMuted && !audioPlayer.isPlaying()) {
     effectiveState = "listening";
@@ -3467,6 +3452,7 @@ const mediaPlayerInner = document.getElementById("media-player-inner")!;
 
 let closeMediaPlayer = function () {
   mediaPlayer.classList.add("hidden");
+  document.body.classList.remove("media-playing");
   mediaPlayerInner.innerHTML = "";
   orb.resume();
   socket.send({ type: "media_state", active: false });
@@ -3490,6 +3476,7 @@ window.addEventListener("jarvis:overlay", (event) => {
 });
 
 function openMediaPlayer(title: string, embedHtml: string) {
+  document.body.classList.add("media-playing");
   orb.pause();
   socket.send({ type: "media_state", active: true });
   // Server chỉ chặn TTS mới; audio đã xếp lịch trong trình duyệt phải dừng ngay, không đọc chồng lên media.

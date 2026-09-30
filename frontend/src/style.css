@@ -1591,7 +1591,7 @@ body {
   }
 
   #menu-dropdown {
-    top: 50px;
+    top: 56px;
     right: 12px;
   }
 
@@ -1795,7 +1795,7 @@ body {
   #webcam-hud {
     width: calc(100% - 24px);
     height: 240px;
-    left: 12px;
+    left: 2.5%;
   }
 }
 
@@ -1831,7 +1831,6 @@ body {
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 0 30px rgba(14, 165, 233, 0.03);
   overflow: hidden;
 }
-
 
 #history-panel.hidden {
   transform: translateX(-120%);
@@ -2212,7 +2211,7 @@ body {
 @media (max-width: 768px) {
   #history-panel {
     width: calc(100% - 24px);
-    left: 12px;
+    left: 2.5%;
     top: auto;
     bottom: 80px;
     height: 72vh;
@@ -2222,6 +2221,12 @@ body {
 
   #webcam-hud.visible~#history-panel {
     height: 40vh;
+  }
+
+  /* Khi media phát: tính chiều cao history-panel vừa khít dưới chân media-player cách đúng 8px như phần cam */
+  body.media-playing #history-panel,
+  body:has(#media-player:not(.hidden)) #history-panel {
+	height: 48vh;
   }
 
   .log-viewer-overlay {
@@ -2892,11 +2897,10 @@ body {
 @media (max-width: 768px) {
   .media-player {
     width: calc(100% - 24px);
-    left: 20px;
-    top: 50px;
+    left: 5%;
+    top: 56px;
     aspect-ratio: 16 / 9;
   }
-
   #chat-history {
     pointer-events: auto;
   }
