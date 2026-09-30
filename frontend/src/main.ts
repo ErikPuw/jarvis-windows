@@ -2391,6 +2391,12 @@ async function sendCommand() {
   commandInput.value = "";
   commandInput.style.height = "24px"; // Reset height
 
+  // Trigger hiệu ứng morphicons: máy bay giấy -> Check (đã gửi) -> quay lại máy bay giấy
+  cmdSend.classList.add("sent");
+  setTimeout(() => {
+    cmdSend.classList.remove("sent");
+  }, 1000);
+
   if (isSpeaking || audioPlayer.isPlaying() || isBusy || currentState === "thinking" || currentState === "working") {
     const bubble = addChatMessage("user", pendingFile ? `📎 [${pendingFile.name}] ${text}` : text);
     if (bubble) bubble.classList.add("pending");

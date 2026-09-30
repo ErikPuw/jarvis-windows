@@ -10,7 +10,7 @@ import { defineMorphIcon, type MorphIconElement } from "morphicons/element";
 import {
   Video, VideoOff, Mic, MicOff, Volume2, VolumeX, SquareTerminal, X,
   PanelRight, PanelRightClose, History, MapPin, EllipsisVertical, Plus, ChevronDown,
-  Paperclip, SendHorizontal, LoaderCircle, Check, CircleDashed,
+  Paperclip, Send, LoaderCircle, Check, CircleDashed,
   Save, PlugZap, Upload, Trash2, type IconNode,
   AppWindow, Monitor, Moon, Mail, Bird, Image, Scale, Music, NotebookPen, FolderOpen,
   Wrench, FileText, Search, Shield, Ticket, Eye, Camera, Bot, Slash, AtSign,
@@ -41,7 +41,7 @@ const SPECS: Spec[] = [
   { btn: "btn-map", on: cls("active"), off: MapPin, onIcon: X, size: 18 },
   { btn: "btn-menu", watch: "menu-dropdown", on: shown, off: EllipsisVertical, onIcon: X, size: 18 },
   { btn: "btn-upload", watch: "file-pinned-container", on: shown, off: Plus, onIcon: Paperclip, size: 14, stroke: 2.5 },
-  { btn: "cmd-send", watch: "command-bar-inner", on: cls("busy"), off: SendHorizontal, onIcon: LoaderCircle, size: 14 },
+  { btn: "cmd-send", on: cls("sent"), off: Send, onIcon: Check, size: 14 },
 ];
 
 const STATUS_ICON: Record<string, IconNode> = { active: LoaderCircle, completed: Check, failed: X };

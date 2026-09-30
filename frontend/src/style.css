@@ -1244,14 +1244,8 @@ body {
   transform: scale(1.1);
 }
 
-#command-bar-inner.busy #cmd-send svg {
-  animation: spin-flow 1s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #command-bar-inner.busy #cmd-send svg {
-    animation: none;
-  }
+#cmd-send.sent {
+  color: #4ade80;
 }
 
 #btn-upload {
@@ -2689,15 +2683,15 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.45));
+  filter: drop-shadow(0 0 3px rgba(56, 189, 248, 0.3));
 }
 
 .gemini-blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(3px);
+  filter: blur(1px);
   mix-blend-mode: screen;
-  opacity: 0.9;
+  opacity: 1;
 }
 
 .gemini-blob-1 {
