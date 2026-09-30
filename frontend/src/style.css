@@ -25,7 +25,7 @@
   --bubble-radius: 18px;
   --container-width: 800px;
   --container-bottom: 18px;
-  --cmd-padding: 6px 14px;
+  --cmd-padding: 6px 4px;
   --cmd-bg: rgba(8, 8, 12, 0.4);
   --chat-to-status-gap: 10px;
   --radius-chip: 8px;
@@ -1666,7 +1666,7 @@ body {
   }
 
   #command-bar-inner {
-    padding: 8px 16px;
+    padding: 8px 4px;
     border-radius: 12px;
   }
 
@@ -3688,7 +3688,7 @@ body {
    edge so it looks perched on the command bar; #status-text owns the left side. */
 #jarvis-mascot {
   position: absolute;
-  right: 0;
+  right: -10px;
   bottom: calc(100% - 20px);
   z-index: 11;
   /* above #chat-history (10) so it stays clickable */
@@ -3727,8 +3727,9 @@ body {
 
 @media (max-width: 768px) {
   #jarvis-mascot {
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
+	right: -4px;
   }
 }
 
