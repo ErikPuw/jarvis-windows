@@ -545,10 +545,14 @@ export function initMemoryCenter(onDataChanged: () => Promise<unknown>): void {
   document.getElementById("memory-category-nav")?.addEventListener("click", (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-memory-kind]");
     if (!button) return;
-    activeMemoryKind = button.dataset.memoryKind as MemoryCategoryId;
+    const kind = button.dataset.memoryKind as MemoryCategoryId;
+    if (kind === activeMemoryKind) return;
+    activeMemoryKind = kind;
     memoryOffset = 0;
     selectedMemoryId = null;
     mobileDetailActive = false;
+    renderMemoryCategoryNav();
+    button.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
     loadMemoryList();
   });
   document.getElementById("memory-list-container")?.addEventListener("click", (event) => {

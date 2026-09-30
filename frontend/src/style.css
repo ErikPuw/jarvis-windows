@@ -100,8 +100,8 @@ body {
   top: 16px;
   right: 16px;
   display: flex;
-  gap: 8px;
-  z-index: 20;
+  gap: 4px;
+  z-index: 3;
 }
 
 #controls button {
@@ -185,11 +185,10 @@ body {
   right: 10px;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 10;
+  z-index: 55;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 8px;
+  padding: 0;
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -200,13 +199,10 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
-  /* Hide scrollbar Firefox */
-  transition: opacity 0.4s;
 }
 
 #status-dashboard::-webkit-scrollbar {
   display: none;
-  /* Hide scrollbar Chrome/Safari */
 }
 
 #status-dashboard::before {
@@ -224,13 +220,16 @@ body {
   gap: 8px;
   position: relative;
   z-index: 1;
+  background: transparent;
+  border: none;
+  padding: 0;
 }
 
-/* Biến mỗi nhóm con thành một ô kính Glassmorphism 3D riêng biệt */
+/* Biến mỗi nhóm con thành một ô kính Glassmorphism tĩnh hoàn toàn */
 #status-dashboard .hud-group {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-top: 1px solid rgba(255, 255, 255, 0.18);
   border-left: 1px solid rgba(255, 255, 255, 0.12);
@@ -239,24 +238,12 @@ body {
   box-shadow:
     0 10px 30px rgba(0, 0, 0, 0.35),
     inset 0 1px 1px rgba(255, 255, 255, 0.08);
-  transform: perspective(1000px) rotateY(-8deg) translateZ(0);
-  transform-style: preserve-3d;
-  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
-    box-shadow 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
-    border-color 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
-    background 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-  will-change: transform, box-shadow;
+  transition: background 0.2s ease;
 }
 
-/* Hover state: Thẻ xoay thẳng, trồi lên 3D và phát sáng nhẹ */
+/* Hover state: Hoàn toàn tĩnh, không dịch chuyển, không nhảy nhót */
 #status-dashboard .hud-group:hover {
-  transform: perspective(1000px) rotateY(0deg) translateZ(8px) scale(1.02);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
-  border-color: rgba(14, 165, 233, 0.35);
-  box-shadow:
-    0 15px 35px rgba(0, 0, 0, 0.5),
-    0 0 15px rgba(14, 165, 233, 0.25),
-    inset 0 1px 2px rgba(255, 255, 255, 0.15);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%);
 }
 
 /* Loại bỏ viền kẻ chia đôi cũ và đảm bảo thẻ độc lập */
@@ -278,62 +265,12 @@ body {
 }
 
 #status-dashboard.hidden {
-  opacity: 0;
+  display: none !important;
   pointer-events: none;
 }
 
-@keyframes hud-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(-50%) translateX(40px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(-50%) translateX(0);
-  }
-}
-
-@keyframes hud-content-fade {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 #status-dashboard:not(.hidden) {
-  animation: hud-slide-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-#status-dashboard:not(.hidden):not(.loaded) .hud-content .hud-group {
-  animation: hud-content-fade 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-#status-dashboard:not(.hidden):not(.loaded) .hud-content .hud-group:nth-child(1) {
-  animation-delay: 0.05s;
-}
-
-#status-dashboard:not(.hidden):not(.loaded) .hud-content .hud-group:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-#status-dashboard:not(.hidden):not(.loaded) .hud-content .hud-group:nth-child(3) {
-  animation-delay: 0.25s;
-}
-
-#status-dashboard:not(.hidden):not(.loaded) .hud-content .hud-group:nth-child(4) {
-  animation-delay: 0.35s;
-}
-
-#status-dashboard.loaded .hud-content .hud-group {
-  animation: none;
-  opacity: 1;
-  transform: none;
+  display: flex;
 }
 
 .hud-group {
@@ -1595,6 +1532,7 @@ body {
 
   .hud-group {
     gap: 8px;
+    transform: none;
   }
 
   .hud-label {
@@ -1681,7 +1619,7 @@ body {
   #status-dashboard {
     width: 160px;
     right: 8px;
-    padding: 12px;
+    padding: 0;
   }
 
   #command-container {
@@ -1725,7 +1663,7 @@ body {
   border: 1px solid rgba(0, 212, 255, 0.2);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  z-index: 10;
+  z-index: 55;
   transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.8s ease;
   /* Không dùng transition: all để tránh giật khi kéo resize */
   overflow: hidden;
@@ -1886,7 +1824,7 @@ body {
   border-radius: 12px;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  z-index: 10;
+  z-index: 55;
   display: flex;
   flex-direction: column;
   transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
@@ -2348,7 +2286,7 @@ body {
     linear-gradient(to right, transparent, black 10%, black 90%, transparent),
     linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
   -webkit-mask-composite: source-in;
-  z-index: 10;
+  z-index: 55;
 }
 
 #map-panel.mini-mode #map-container {
@@ -2373,6 +2311,7 @@ body {
   mask-composite: auto !important;
   -webkit-mask-composite: source-over !important;
   background: #000;
+  z-index: 4;
 }
 
 #map-panel.full-screen #map-container {
@@ -2727,17 +2666,77 @@ body {
   }
 }
 
-/* --- Hiệu ứng Chờ Typing Animation cho Chat Bubble --- */
+/* --- Hiệu ứng Chờ Typing Animation cho Chat Bubble: Gemini Live Fluid Aurora (Mẫu 29) --- */
 .chat-bubble.assistant.typing-loader {
   display: flex;
   align-items: center;
-  gap: 4px;
-  min-width: 52px;
-  min-height: 34px;
   justify-content: center;
-  padding: 10px 18px;
+  min-width: 48px;
+  min-height: 32px;
+  padding: 8px 14px;
 }
 
+.gemini-mesh-container {
+  position: relative;
+  width: 30px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.45));
+}
+
+.gemini-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(3px);
+  mix-blend-mode: screen;
+  opacity: 0.9;
+}
+
+.gemini-blob-1 {
+  width: 11px;
+  height: 11px;
+  background: #38bdf8;
+  left: 1px;
+  animation: fluid-blob-1 2.2s ease-in-out infinite alternate;
+}
+
+.gemini-blob-2 {
+  width: 11px;
+  height: 11px;
+  background: #c084fc;
+  right: 1px;
+  animation: fluid-blob-2 2.5s ease-in-out infinite alternate;
+}
+
+.gemini-blob-3 {
+  width: 10px;
+  height: 10px;
+  background: #f43f5e;
+  left: 10px;
+  animation: fluid-blob-3 2s ease-in-out infinite alternate;
+}
+
+@keyframes fluid-blob-1 {
+  0% { transform: translate(0, -2px) scale(0.9); }
+  50% { transform: translate(5px, 2px) scale(1.15); }
+  100% { transform: translate(1px, -3px) scale(0.95); }
+}
+
+@keyframes fluid-blob-2 {
+  0% { transform: translate(0, 2px) scale(1.1); }
+  50% { transform: translate(-5px, -2px) scale(0.85); }
+  100% { transform: translate(-1px, 3px) scale(1.05); }
+}
+
+@keyframes fluid-blob-3 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-3px, 3px) scale(1.2); }
+  100% { transform: translate(3px, -2px) scale(0.9); }
+}
+
+/* Fallback typing-dot */
 .typing-dot {
   width: 6px;
   height: 6px;
@@ -2756,14 +2755,12 @@ body {
 }
 
 @keyframes typing-bounce {
-
   0%,
   80%,
   100% {
     transform: scale(0.6);
     opacity: 0.4;
   }
-
   40% {
     transform: scale(1.2);
     opacity: 1;
@@ -3739,7 +3736,7 @@ body {
 #jarvis-clock {
   --fc-h: 64px;
   position: fixed;
-  top: 72px;
+  top: 84px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1;

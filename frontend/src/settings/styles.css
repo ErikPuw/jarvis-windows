@@ -1404,19 +1404,54 @@
   .sd-memory {
     display: flex;
     flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .sd-card.sd-memory-cats,
+  .sd-memory-cats {
+    flex-shrink: 0 !important;
+    min-height: 56px !important;
+    height: auto !important;
+    padding: 8px 10px !important;
+    box-sizing: border-box;
+    overflow: visible !important;
+  }
+
+  .sd-memory-list {
+    flex: 1 !important;
+    min-height: 0 !important;
   }
 
   #memory-category-nav {
+    display: flex;
     flex-direction: row;
     overflow-x: auto;
-    gap: 6px;
-    padding-bottom: 4px;
+    overflow-y: hidden;
+    gap: 8px;
+    padding: 2px 2px 4px;
+    height: 42px;
+    min-height: 42px;
+    align-items: center;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #memory-category-nav::-webkit-scrollbar {
+    display: none;
   }
 
   #memory-category-nav .settings-btn,
   #memory-category-nav .sd-mem-cat-btn {
     width: auto;
     flex-shrink: 0;
+    height: 38px;
+    min-height: 38px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 12px;
+    border-radius: 8px;
   }
 
   .sd-mem-panel-head { display: none; }

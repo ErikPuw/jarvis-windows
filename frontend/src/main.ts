@@ -1822,12 +1822,14 @@ socket.onMessage((msg) => {
 
     // 2. Tạo bong bóng chat cho phản hồi của Assistant (LLM)
     activeAssistantBubble = document.createElement("div");
-    // Thêm class typing-loader để chạy animation 3 chấm nháy
+    // Thêm class typing-loader với hiệu ứng Gemini Live Fluid Aurora 3 giọt hòa sắc (Mẫu 29)
     activeAssistantBubble.className = "chat-bubble assistant typing-loader";
     activeAssistantBubble.innerHTML = `
-      <div class="typing-dot"></div>
-      <div class="typing-dot"></div>
-      <div class="typing-dot"></div>
+      <div class="gemini-mesh-container">
+        <div class="gemini-blob gemini-blob-1"></div>
+        <div class="gemini-blob gemini-blob-2"></div>
+        <div class="gemini-blob gemini-blob-3"></div>
+      </div>
     `;
     attachBubbleHead(activeAssistantBubble);
     chatHistory.appendChild(activeAssistantBubble);
@@ -2355,7 +2357,18 @@ function deliverTranscript(text: string): boolean {
   return false;
 }
 
+function dismissKeyboardOnMobile() {
+  commandInput.blur();
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+  if (isMobile) {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+  }
+}
+
 async function sendCommand() {
+  dismissKeyboardOnMobile();
   const text = commandInput.value.trim();
   if (!text && !pendingFile) return;
 
@@ -2668,6 +2681,7 @@ commandInput.addEventListener("keydown", (e) => {
 
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
+    dismissKeyboardOnMobile();
     sendCommand();
   } else if (e.key === "Escape") {
     toggleCommandBar(false);
@@ -2688,7 +2702,10 @@ commandInput.addEventListener("keydown", (e) => {
 });
 
 // Send button click
-cmdSend.addEventListener("click", () => sendCommand());
+cmdSend.addEventListener("click", () => {
+  dismissKeyboardOnMobile();
+  sendCommand();
+});
 
 // Auto-mute when input is focused or clicked and prefetch suggestions
 commandInput.addEventListener("focus", () => {
