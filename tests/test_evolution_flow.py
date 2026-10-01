@@ -54,20 +54,12 @@ version: "1.0.0"
 """
 
 
-def _fake_vec(text):
-    if "control" in text:
-        return [1.0, 0.0]
-    if "giọng" in text:
-        return [0.0, 1.0]
-    return [0.0, -1.0]
-
-
 def _isolate(root: Path):
     """Point evolution.py at a throwaway project root: STYLE_FILE/EVOLUTION_LOG only,
     no SKILL_FILE anymore — routing proposals live entirely inside Evolution.md."""
     system = root / "data" / "wiki" / "System"
     system.mkdir(parents=True)
-    saved = (ev.PROJECT_ROOT, ev.STYLE_FILE, ev.EVOLUTION_LOG, ev.call_llm, ev._vec, ev._last_inputs)
+    saved = (ev.PROJECT_ROOT, ev.STYLE_FILE, ev.EVOLUTION_LOG, ev.call_llm, ev._last_inputs)
     ev.PROJECT_ROOT = root
     ev.STYLE_FILE = root / "skills" / "self_evolution" / "STYLE.md"
     ev.EVOLUTION_LOG = system / "Evolution.md"
@@ -75,7 +67,7 @@ def _isolate(root: Path):
 
 
 def _restore(saved):
-    ev.PROJECT_ROOT, ev.STYLE_FILE, ev.EVOLUTION_LOG, ev.call_llm, ev._vec, ev._last_inputs = saved
+    ev.PROJECT_ROOT, ev.STYLE_FILE, ev.EVOLUTION_LOG, ev.call_llm, ev._last_inputs = saved
 
 
 def test_full_run_drops_invented_rules_and_skips_unchanged_inputs():
@@ -92,7 +84,7 @@ def test_full_run_drops_invented_rules_and_skips_unchanged_inputs():
             return types.SimpleNamespace(choices=[types.SimpleNamespace(message=msg)])
 
         try:
-            ev.call_llm, ev._vec, ev._last_inputs = fake_llm, _fake_vec, None
+            ev.call_llm, ev._last_inputs = fake_llm, None
 
             first = asyncio.run(ev._run_cognitive_evolution())
             style = ev.STYLE_FILE.read_text(encoding="utf-8")
@@ -121,7 +113,7 @@ def test_emoji_stripped_from_style_and_log():
             return types.SimpleNamespace(choices=[types.SimpleNamespace(message=msg)])
 
         try:
-            ev.call_llm, ev._vec, ev._last_inputs = fake_llm, _fake_vec, None
+            ev.call_llm, ev._last_inputs = fake_llm, None
 
             result = asyncio.run(ev._run_cognitive_evolution())
             assert result["success"]

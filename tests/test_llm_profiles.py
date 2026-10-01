@@ -116,6 +116,7 @@ def test_strip_think_gemma_keeps_gt_characters():
         out = llm_server.strip_think("Chuyển A -> B, x => y, > 5<|channel>thought" + chr(10) + "nghĩ<channel|> Xong")
     finally:
         _restore(saved)
+    # strip_think xoá tag và lạt khoảng trắng thừa, giữ ký tự > thường
     assert out == "Chuyển A -> B, x => y, > 5 Xong", out
 
 
@@ -150,19 +151,20 @@ def _call_params(monkeypatch, messages, thinking=False):
 
 
 def test_adapter_params_match_legacy_matrix(monkeypatch):
-    """Refactor adapter không được đổi số: ma trận temp/top_p/top_k/min_p/
-    presence/max_tokens/reasoning/enable_thinking theo từng hãng."""
+    """Adapter parameters theo từng profile: temp/top_p/top_k/min_p/
+    presence/max_tokens/enable_thinking/reasoning_format/reasoning_effort theo từng hãng.
+    Gemma cập nhật: temp=1.0 (chuẩn Google), top_p=0.95, top_k=64, min_p=0.0."""
     msgs = [{"role": "user", "content": "hi"}]
     cases = [
-        # (env flags, thinking, temp, top_p, top_k, min_p, presence, max_tok, reasoning, enable_think, rep?)
-        ({}, False, 0.7, 0.8, 20, 0.0, 1.5, 8192, "off", False, 1.0),
-        ({}, True, 1.0, 0.95, 20, 0.5, 1.5, 16384, "on", True, 1.0),
-        ({"BONSAI_MODEL": "true"}, True, 1.0, 0.95, 20, 0.0, 0.0, 16384, "on", True, 1.0),
-        ({"BONSAI_MODEL": "true"}, False, 0.7, 0.8, 20, 0.0, 1.5, 8192, "off", False, 1.0),
-        ({"CHANG_MODEL": "true"}, False, 0.4, 0.8, 40, 0.0, 0.0, 8192, "off", False, None),
-        ({"CHANG_MODEL": "true"}, True, 1.0, 0.95, 40, 0.5, 0.0, 16384, "on", True, None),
+        # (env flags, thinking, temp, top_p, top_k, min_p, presence, max_tok, enable_think, rep?)
+        ({}, False, 0.7, 0.8, 20, 0.0, 1.5, 8192, False, 1.0),
+        ({}, True, 1.0, 0.95, 20, 0.5, 1.5, 16384, True, 1.0),
+        ({"BONSAI_MODEL": "true"}, True, 1.0, 0.95, 20, 0.0, 0.0, 16384, True, 1.0),
+        ({"BONSAI_MODEL": "true"}, False, 0.7, 0.8, 20, 0.0, 1.5, 8192, False, 1.0),
+        ({"CHANG_MODEL": "true"}, False, 1.0, 0.95, 64, 0.0, 0.0, 8192, False, None),
+        ({"CHANG_MODEL": "true"}, True, 1.0, 0.95, 64, 0.0, 0.0, 16384, True, None),
     ]
-    for flags, thinking, temp, top_p, top_k, min_p, presence, max_tok, reasoning, enable, rep in cases:
+    for flags, thinking, temp, top_p, top_k, min_p, presence, max_tok, enable, rep in cases:
         saved = _with_env(**BASE, **flags)
         try:
             seen = _call_params(monkeypatch, msgs, thinking=thinking)
@@ -171,14 +173,17 @@ def test_adapter_params_match_legacy_matrix(monkeypatch):
         eb = seen["extra_body"]
         assert (seen["temperature"], seen["top_p"], seen["max_tokens"],
                 seen["presence_penalty"]) == (temp, top_p, max_tok, presence), flags
-        assert (eb["top_k"], eb["min_p"], eb["reasoning"],
+        assert (eb["top_k"], eb["min_p"],
                 eb["chat_template_kwargs"]) == (
-            top_k, min_p, reasoning, {"enable_thinking": enable}), flags
+            top_k, min_p, {"enable_thinking": enable}), flags
+        # Kiểm tra reasoning_format (không kiểm tra reasoning_effort vì nó chỉ có khi thinking=False)
+        assert eb.get("reasoning_format") == "deepseek", f"reasoning_format mismatch: {flags}"
         assert eb.get("repetition_penalty") == rep, flags
 
 
 def test_adapter_system_merge_and_think_inject(monkeypatch):
-    """Qwen/Bonsai gộp system về đầu; Gemma giữ nguyên + chèn <|think|> khi thinking."""
+    """Qwen/Bonsai gộp system về đầu; Gemma giữ nguyên, không chèn <|think|>
+    (template Gemma tự bật thinking via enable_thinking=true)."""
     msgs = [{"role": "user", "content": "a"},
             {"role": "system", "content": "SYS"},
             {"role": "user", "content": "b"}]
@@ -196,7 +201,9 @@ def test_adapter_system_merge_and_think_inject(monkeypatch):
     finally:
         _restore(saved)
     assert [m["role"] for m in seen["messages"]] == ["user", "system", "user"]
-    assert seen_think["messages"][0]["content"].startswith("<|think|>")
+    # Gemma không chèn <|think|> nữa - reasoning_format="deepseek" + enable_thinking=true xử lý
+    assert not any(msg.get("content", "").startswith("<|think|>") for msg in seen_think["messages"]), \
+        "Gemma should not inject <|think|>"
 
 
 if __name__ == "__main__":

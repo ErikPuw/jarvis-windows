@@ -219,6 +219,10 @@ def test_reference_lessons_are_lesson_type_only(monkeypatch):
             return [{"content": "Người dùng thích emoji", "type": "preference", "source": "x"},
                     {"content": "Trả lời ngắn khi ngài mệt", "type": "lesson", "source": "y"}]
 
+        def get_behaviour_rules(self, limit=5, max_chars=600):
+            # Trả bài học hành vi cho <style>
+            return ["Trả lời ngắn khi ngài mệt"]
+
         def get_recent_agent_outcomes(self, n):
             return []
 
@@ -230,5 +234,11 @@ def test_reference_lessons_are_lesson_type_only(monkeypatch):
     import engine.core.memory as memory
     monkeypatch.setattr(memory, "build_unified_routing_history", lambda *a, **k: [])
     msgs, _ = asyncio.run(rchat.build_chat_messages("general", "tôi mệt", TurnContext(ws=object(), send_json=None)))
-    ref = next(m["content"] for m in msgs if m["content"].startswith("[Dữ liệu tham khảo"))  # soul_rules cũng nhắc tên <reference>
-    assert "Trả lời ngắn khi ngài mệt" in ref and "thích emoji" not in ref
+    # Bài học nghe nằm trong <style> của system prompt, không trong <reference>
+    sys_msg = next(m["content"] for m in msgs if m["role"] == "system" and "<style>" in m.get("content", ""))
+    assert "Trả lời ngắn khi ngài mệt" in sys_msg, "Bài học phải nằm trong <style>"
+    # <reference> KHÔNG còn chứa lessons
+    ref_msgs = [m["content"] for m in msgs if m["content"].startswith("[Dữ liệu tham khảo")]
+    if ref_msgs:
+        ref = ref_msgs[0]
+        assert "thích emoji" not in ref, "Preference KHÔNG được vào <reference>"

@@ -67,6 +67,7 @@ def outcome_for_turn(session, turn_started_at: float) -> tuple[int | None, str |
 
 
 LEXICAL_DUPLICATE_THRESHOLD = 0.55
+LEXICAL_CLOSEST_MIN = 0.2
 
 
 def _lexical_tokens(text: str) -> set[str]:
@@ -323,6 +324,7 @@ class LearningEngine:
         self._migrate_legacy_learnings()
         self._migrate_add_sample_queries_column()
         self._migrate_add_embedding_column()
+        self._migrate_add_embedding_model_column()
         self._sync_learning_wiki()
 
     def _migrate_add_sample_queries_column(self):
@@ -344,6 +346,19 @@ class LearningEngine:
         try:
             conn = self._get_learning_db()
             conn.execute("ALTER TABLE learnings ADD COLUMN embedding TEXT NOT NULL DEFAULT ''")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def _migrate_add_embedding_model_column(self):
+        """Add embedding_model column to track which embedder was used."""
+        conn = None
+        try:
+            conn = self._get_learning_db()
+            conn.execute("ALTER TABLE learnings ADD COLUMN embedding_model TEXT NOT NULL DEFAULT ''")
             conn.commit()
         except sqlite3.OperationalError:
             pass  # Column already exists
@@ -423,39 +438,25 @@ class LearningEngine:
         _sync_learning_hub()
 
     def consolidate_learnings(self) -> int:
-        """Delete older near-duplicate learnings (same type; cosine >= threshold
-        or lexically similar), keeping the newest, then rebuild the wiki notes.
+        """Delete older lexically similar learnings (same type), keeping the newest,
+        then rebuild the wiki notes. Dedupe sử dụng lexical, không cosine (e5-small không phân biệt ý).
         Returns how many rows were removed."""
         conn = self._get_learning_db()
         rows = conn.execute(
-            "SELECT id, type, content, embedding FROM learnings ORDER BY id DESC"
+            "SELECT id, type, content FROM learnings ORDER BY id DESC"
         ).fetchall()
-        # Most rows were stored while the embedder was unavailable and have no
-        # vector, so cosine dedupe never saw them: backfill before comparing.
         rows = [dict(r) for r in rows]
-        for row in rows:
-            if not row["embedding"]:
-                vec = self._embed_text(row["content"])
-                if vec:
-                    row["embedding"] = json.dumps(vec, ensure_ascii=False)
-                    conn.execute("UPDATE learnings SET embedding=? WHERE id=?", (row["embedding"], row["id"]))
-        conn.commit()
         kept: list = []
         doomed: list[int] = []
         for row in rows:
-            vec = None
-            try:
-                vec = json.loads(row["embedding"]) if row["embedding"] else None
-            except (TypeError, json.JSONDecodeError):
-                pass
-            for other, other_vec in kept:
+            for other in kept:
                 if other["type"] != row["type"]:
                     continue
-                if (vec and other_vec and self._cosine_similarity(vec, other_vec) >= self.SEMANTIC_DUPLICATE_THRESHOLD)                         or _lexically_similar(row["content"], other["content"]):
+                if _lexically_similar(row["content"], other["content"]):
                     doomed.append(row["id"])
                     break
             else:
-                kept.append((row, vec))
+                kept.append(row)
         if doomed:
             conn.executemany("DELETE FROM learnings WHERE id=?", [(i,) for i in doomed])
             conn.commit()
@@ -466,10 +467,10 @@ class LearningEngine:
         return len(doomed)
 
     # ------------------------------------------------------------------
-    # Semantic duplicate detection (dùng chung embedder với SemanticMemoryEngine)
+    # Embedding của bài học: chỉ để xem/sửa trong Memory Center. KHÔNG dùng để so trùng:
+    # e5-small nén thang cosine (chủ đề khác vẫn 0.88-0.95, cùng ý 0.94-0.97; đo 2026-10-01),
+    # nên trùng lặp do chữ (Jaccard) và bước phản biện quyết định.
     # ------------------------------------------------------------------
-
-    SEMANTIC_DUPLICATE_THRESHOLD = 0.90
 
     @staticmethod
     def _embed_text(content: str) -> Optional[list]:
@@ -483,38 +484,15 @@ class LearningEngine:
             return None
 
     @staticmethod
-    def _cosine_similarity(a: list, b: list) -> float:
-        if not a or not b or len(a) != len(b):
-            return 0.0
-        dot = sum(x * y for x, y in zip(a, b))
-        norm_a = sum(x * x for x in a) ** 0.5
-        norm_b = sum(y * y for y in b) ** 0.5
-        if norm_a == 0 or norm_b == 0:
-            return 0.0
-        return dot / (norm_a * norm_b)
-
-    def _find_semantic_duplicate(
-        self, conn: sqlite3.Connection, learn_type: str, embedding: list, exclude_id: int | None = None
-    ) -> Optional[int]:
-        """Tìm bài học cùng loại có nội dung na ná (cosine similarity cao) để tránh phân mảnh."""
-        rows = conn.execute(
-            "SELECT id, embedding FROM learnings WHERE type=? AND embedding != ''",
-            (learn_type,),
-        ).fetchall()
-        best_id, best_score = None, 0.0
-        for row in rows:
-            if exclude_id is not None and row["id"] == exclude_id:
-                continue
-            try:
-                candidate_vec = json.loads(row["embedding"])
-            except (TypeError, json.JSONDecodeError):
-                continue
-            score = self._cosine_similarity(embedding, candidate_vec)
-            if score > best_score:
-                best_id, best_score = row["id"], score
-        if best_id is not None and best_score >= self.SEMANTIC_DUPLICATE_THRESHOLD:
-            return best_id
-        return None
+    def _embedding_fields(content: str) -> tuple[str, str]:
+        """Tính embedding và trả (embedding_json, model).
+        embedding_json: chuỗi JSON mảng số hoặc chuỗi rỗng
+        model: tên embedder hoặc chuỗi rỗng"""
+        import os
+        embedding = LearningEngine._embed_text(content)
+        embedding_json = json.dumps(embedding, ensure_ascii=False) if embedding else ""
+        model = os.getenv("LOCAL_EMBED_MODEL", "") if embedding else ""
+        return embedding_json, model
 
     def _store_learning(self, content: str, kind: str, key: str) -> bool:
         if kind in {"feedback_lesson", "behaviour_lesson"} and not _is_valid_learning_text(content):
@@ -535,8 +513,7 @@ class LearningEngine:
         # Emoji chỉ thể hiện lúc chat trực tiếp; dữ liệu học lưu vào DB/wiki không giữ emoji.
         from engine.core.memory import strip_emojis
         normalized_content = strip_emojis(content.strip())
-        embedding = self._embed_text(normalized_content)
-        embedding_json = json.dumps(embedding, ensure_ascii=False) if embedding else ""
+        embedding_json, embedding_model = self._embedding_fields(normalized_content)
         conn = self._get_learning_db()
         existing_content = conn.execute(
             "SELECT id FROM learnings WHERE LOWER(TRIM(content)) = LOWER(TRIM(?))",
@@ -557,25 +534,23 @@ class LearningEngine:
             if changed:
                 conn.execute(
                     """UPDATE learnings
-                       SET content=?, source=?, importance=?, embedding=?
+                       SET content=?, source=?, importance=?, embedding=?, embedding_model=?
                        WHERE id=?""",
                     (
                         normalized_content,
                         "explicit_conversation_learning",
                         importance,
                         embedding_json,
+                        embedding_model,
                         existing["id"],
                     ),
                 )
         else:
             duplicate_id = None
-            if embedding:
-                duplicate_id = self._find_semantic_duplicate(conn, learn_type, embedding)
-            if duplicate_id is None:
-                for row in conn.execute("SELECT id, content FROM learnings WHERE type=?", (learn_type,)):
-                    if _lexically_similar(normalized_content, row["content"]):
-                        duplicate_id = row["id"]
-                        break
+            for row in conn.execute("SELECT id, content FROM learnings WHERE type=?", (learn_type,)):
+                if _lexically_similar(normalized_content, row["content"]):
+                    duplicate_id = row["id"]
+                    break
             if duplicate_id is not None:
                 conn.close()
                 log.info(
@@ -586,8 +561,8 @@ class LearningEngine:
                 return False
             conn.execute(
                 """INSERT INTO learnings
-                   (type, semantic_key, content, source, importance, created_at, embedding)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                   (type, semantic_key, content, source, importance, created_at, embedding, embedding_model)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     learn_type,
                     key,
@@ -596,6 +571,7 @@ class LearningEngine:
                     importance,
                     time.time(),
                     embedding_json,
+                    embedding_model,
                 ),
             )
             changed = True
@@ -604,7 +580,7 @@ class LearningEngine:
         self._sync_learning_wiki()
         return changed
 
-    _FORBIDDEN_KEYWORDS = ("hỏi", "xin phép", "công cụ", "tool", "agent", "<ask_user>", "<action_run>", "<offer_protocol>")
+    _FORBIDDEN_KEYWORDS = ("<ask_user>", "<action_run>", "<offer_protocol>")
 
     @staticmethod
     def _normalize_kind(kind: str) -> str:
@@ -619,21 +595,60 @@ class LearningEngine:
             return "user_fact"
         return k
 
+    @staticmethod
+    def _norm_evidence(text: str) -> str:
+        """Chuẩn hoá bằng chứng: casefold, normalize unicode, bỏ dấu câu."""
+        text = str(text or "").strip()
+        # casefold
+        text = text.casefold()
+        # normalize unicode (NFC)
+        text = unicodedata.normalize("NFC", text)
+        # bỏ tiền tố role
+        text = re.sub(r"^(?:user|người dùng|assistant|jarvis):\s*", "", text, flags=re.IGNORECASE)
+        # thay ký tự không phải chữ/số bằng khoảng trắng, gộp khoảng trắng
+        text = re.sub(r"[^\w]+", " ", text)
+        text = " ".join(text.split()).strip()
+        return text
+
     def _validate_proposal_evidence(self, item: dict, user_text: str, conversation_text: str = "") -> bool:
         evidence = str(item.get("evidence", "")).strip()
-        evidence = re.sub(r"^(?:user|người dùng|assistant|jarvis):\s*", "", evidence, flags=re.IGNORECASE)
-        evidence = " ".join(evidence.split()).casefold()
+        evidence = self._norm_evidence(evidence)
         if not evidence:
             return False
         kind = self._normalize_kind(item.get("kind", ""))
         if kind in ("user_fact", "preference", "fact"):
-            norm_user = " ".join(user_text.split()).casefold()
+            norm_user = self._norm_evidence(user_text)
             return evidence in norm_user
         all_text = f"{user_text} {conversation_text}"
-        norm_all = " ".join(all_text.split()).casefold()
+        norm_all = self._norm_evidence(all_text)
         return evidence in norm_all
 
     _TEMPORARY_WORDS = ("lười", "mệt", "buồn ngủ", "đang bận", "thời tiết", "giá vàng", "xổ số", "mấy giờ")
+
+    @staticmethod
+    def _is_explicit_learning_request(text: str) -> bool:
+        """Kiểm tra xem tin nhắn có yêu cầu học rõ ràng không (ghi nhớ, học, hạn chế, đổi hành vi)."""
+        if not text:
+            return False
+        t_low = text.lower()
+        patterns = [
+            r"ghi nhớ",
+            r"hãy nhớ",
+            r"nhớ\s+(?:giùm|giúp|nhé|lại)",
+            r"học hỏi",
+            r"hãy học",
+            r"lần sau",
+            r"từ giờ",
+            r"từ nay",
+            r"về sau",
+            r"hạn chế",
+            r"đừng\s+.{0,40}?\s+nữa",
+            r"không được\s+.{0,40}?\s+nữa",
+        ]
+        for pattern in patterns:
+            if re.search(pattern, t_low):
+                return True
+        return False
 
     def _is_temporary_state_or_tool_query(self, evidence: str, content: str) -> bool:
         ev_low = evidence.lower()
@@ -675,27 +690,40 @@ class LearningEngine:
             return False
 
     def _find_closest_existing_learning(self, kind: str, key: str, content: str) -> dict | None:
+        """Tìm mục học hiện có gần nhất (khớp semantic_key, sau đó Jaccard)."""
         learn_type = {"behaviour_lesson": "lesson", "user_fact": "user_fact", "preference": "preference"}.get(kind, "lesson")
         conn = self._get_learning_db()
+
+        # Kiểm tra khớp semantic_key trước
         row = conn.execute(
             "SELECT id, type, semantic_key, content FROM learnings WHERE type=? AND semantic_key=? LIMIT 1",
             (learn_type, key),
         ).fetchone()
         if row:
-            res = dict(row)
             conn.close()
-            return res
+            return dict(row)
 
-        embedding = self._embed_text(content)
-        if embedding:
-            dup_id = self._find_semantic_duplicate(conn, learn_type, embedding)
-            if dup_id is not None:
-                row = conn.execute("SELECT id, type, semantic_key, content FROM learnings WHERE id=?", (dup_id,)).fetchone()
-                if row:
-                    res = dict(row)
-                    conn.close()
-                    return res
+        # Không có semantic_key trùng, kiểm tra lexical similarity
+        rows = conn.execute(
+            "SELECT id, type, semantic_key, content FROM learnings WHERE type=?",
+            (learn_type,),
+        ).fetchall()
+
+        best_match = None
+        best_score = 0.0
+        for r in rows:
+            ta = _lexical_tokens(content)
+            tb = _lexical_tokens(r["content"])
+            if ta and tb:
+                score = len(ta & tb) / len(ta | tb)
+                if score > best_score:
+                    best_score, best_match = score, dict(r)
+
         conn.close()
+
+        # Chỉ trả nếu đạt LEXICAL_CLOSEST_MIN
+        if best_match and best_score >= LEXICAL_CLOSEST_MIN:
+            return best_match
         return None
 
     def _apply_critique_decision(
@@ -729,14 +757,13 @@ class LearningEngine:
             new_text = merged_content.strip() if decision == "merge" and merged_content else proposal.get("content", "").strip()
             from engine.core.memory import strip_emojis
             normalized_content = strip_emojis(new_text)
-            embedding = self._embed_text(normalized_content)
-            embedding_json = json.dumps(embedding, ensure_ascii=False) if embedding else ""
+            embedding_json, embedding_model = self._embedding_fields(normalized_content)
 
             conn.execute(
                 """UPDATE learnings
-                   SET content=?, embedding=?, source=?
+                   SET content=?, embedding=?, embedding_model=?, source=?
                    WHERE id=?""",
-                (normalized_content, embedding_json, f"reflective_{decision}", target_id),
+                (normalized_content, embedding_json, embedding_model, f"reflective_{decision}", target_id),
             )
             conn.commit()
             conn.close()
@@ -767,6 +794,34 @@ class LearningEngine:
             ).fetchone()
         conn.close()
         return dict(row) if row else None
+
+    def reembed_learnings(self, record_id: int | None = None) -> dict:
+        """Tính lại embedding cho một bản ghi hoặc tất cả bản ghi.
+        record_id=None: tính lại tất cả
+        Embedder không trả vector ⇒ KHÔNG đụng vào bản ghi đó (giữ vector cũ); không bản ghi nào tính được
+        ⇒ {"updated": 0, "error": "embedder_unavailable"}."""
+        conn = self._get_learning_db()
+        try:
+            if record_id is not None:
+                rows = conn.execute("SELECT id, content FROM learnings WHERE id=?", (record_id,)).fetchall()
+            else:
+                rows = conn.execute("SELECT id, content FROM learnings").fetchall()
+            updated = 0
+            for row in rows:
+                emb_json, emb_model = self._embedding_fields(row["content"])
+                if not emb_json:
+                    continue
+                conn.execute(
+                    "UPDATE learnings SET embedding=?, embedding_model=? WHERE id=?",
+                    (emb_json, emb_model, row["id"]),
+                )
+                updated += 1
+            conn.commit()
+        finally:
+            conn.close()
+        if rows and not updated:
+            return {"updated": 0, "error": "embedder_unavailable"}
+        return {"updated": updated}
 
     def _retract_learning(self, proposal: dict, user_text: str, just: dict) -> bool:
         """Gỡ bài học (spec §4): ngài phàn nàn đúng điều vừa học ở lượt trước → hoàn tác qua hàm của Memory Center.
@@ -872,6 +927,9 @@ class LearningEngine:
         stored = 0
         accepted: list[dict] = []
 
+        # Lấy tin nhắn cuối của người dùng để kiểm tra yêu cầu học tường minh
+        user_last_message = next((t["content"] for t in reversed(turns) if t.get("role") == "user"), user_text)
+
         for proposal in raw_proposals[:2]:
             if not isinstance(proposal, dict):
                 continue
@@ -899,8 +957,16 @@ class LearningEngine:
                     accepted.append(proposal)
                 continue
 
-            if self._is_forbidden_topic(content, kind) or self._is_temporary_state_or_tool_query(evidence, content):
-                log.info("⏭️ Learning rejected: forbidden topic or temporary state: %s", content)
+            if self._is_forbidden_topic(content, kind):
+                log.info("⏭️ Learning rejected: forbidden topic: %s", content)
+                continue
+
+            # Kiểm tra yêu cầu học tường minh
+            is_explicit = self._is_explicit_learning_request(user_last_message)
+
+            # Nếu không phải yêu cầu tường minh, kiểm tra trạng thái tạm thời
+            if not is_explicit and self._is_temporary_state_or_tool_query(evidence, content):
+                log.info("⏭️ Learning rejected: temporary state: %s", content)
                 continue
 
             closest = await asyncio.to_thread(self._find_closest_existing_learning, kind, key, content)
@@ -922,6 +988,20 @@ class LearningEngine:
 
             decision = c_parsed.get("decision", "skip") if isinstance(c_parsed, dict) else "skip"
             merged_content = c_parsed.get("merged_content", "") if isinstance(c_parsed, dict) else ""
+
+            # Nếu yêu cầu học tường minh, kiểm tra ngoài lệnh
+            if is_explicit and decision == "skip":
+                # Kiểm tra xem mục cũ có trùng từ vựng không
+                if closest:
+                    is_lexical_dup = _lexically_similar(content, closest.get("content", ""))
+                    if not is_lexical_dup:
+                        # Mục cũ không trùng ⇒ đổi quyết định thành new
+                        decision = "new"
+                        log.info("Critique skip bị bỏ qua: ngài yêu cầu học rõ ràng")
+                else:
+                    # Không có mục cũ ⇒ đổi thành new
+                    decision = "new"
+                    log.info("Critique skip bị bỏ qua: ngài yêu cầu học rõ ràng")
 
             applied = await asyncio.to_thread(
                 self._apply_critique_decision,
@@ -1056,6 +1136,28 @@ class LearningEngine:
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:limit]
 
+    def get_behaviour_rules(self, limit: int = 5, max_chars: int = 600) -> list[str]:
+        """Lấy các bài học hành vi (type='lesson') theo importance DESC, id DESC.
+        Trả danh sách nội dung (content), cộng dồn độ dài, dừng TRƯỚC khi vượt max_chars, tối đa limit bài.
+        Không dùng embedding, không lọc theo từ khoá."""
+        conn = self._get_learning_db()
+        rows = conn.execute(
+            "SELECT id, content FROM learnings WHERE type=? ORDER BY importance DESC, id DESC LIMIT ?",
+            ("lesson", limit),
+        ).fetchall()
+        conn.close()
+
+        rules: list[str] = []
+        total_len = 0
+        for row in rows:
+            content = row["content"]
+            content_len = len(content)
+            if total_len + content_len > max_chars:
+                break
+            rules.append(content)
+            total_len += content_len
+        return rules
+
     def get_recent_learnings(self, limit: int = 5) -> list[dict]:
         conn = self._get_learning_db()
         rows = conn.execute(
@@ -1110,15 +1212,23 @@ class LearningEngine:
     def list_learning_records(
         self, q: str = "", limit: int = 50, offset: int = 0
     ) -> dict:
-        return self._list_learning_table(
+        result = self._list_learning_table(
             "learnings",
-            "id, type, semantic_key, content, source, importance, created_at",
+            "id, type, semantic_key, content, source, importance, created_at, embedding, embedding_model",
             ("type", "semantic_key", "content", "source"),
             "created_at",
             q,
             limit,
             offset,
         )
+        # Thêm embedding_dim cho mỗi item
+        for item in result["items"]:
+            try:
+                vec = json.loads(item.get("embedding", "")) if item.get("embedding") else None
+                item["embedding_dim"] = len(vec) if vec and isinstance(vec, list) else 0
+            except (TypeError, json.JSONDecodeError):
+                item["embedding_dim"] = 0
+        return result
 
     def list_workflow_records(
         self, q: str = "", limit: int = 50, offset: int = 0
@@ -1275,7 +1385,7 @@ class LearningEngine:
         schemas = {
             "learning": (
                 "learnings",
-                {"type", "semantic_key", "content", "source", "importance"},
+                {"type", "semantic_key", "content", "source", "importance", "embedding", "embedding_model"},
             ),
             "workflow": (
                 "validated_workflows",
@@ -1299,8 +1409,44 @@ class LearningEngine:
         if kind not in schemas:
             raise ValueError("unsupported_kind")
         table, allowed = schemas[kind]
+
+        # Xử lý embedding riêng biệt nếu có (chỉ cho learning)
+        embedding_value = values.get("embedding")
+        embedding_model_value = values.get("embedding_model")
+
+        # Nếu có embedding parameter, xử lý nó
+        if kind == "learning" and "embedding" in values:
+            if embedding_value == "recompute":
+                # Sẽ tính lại dưới đây khi có content mới
+                pass
+            elif embedding_value == "":
+                # Xoá embedding
+                values = {k: v for k, v in values.items() if k != "embedding_model"}
+                values["embedding"] = ""
+                values["embedding_model"] = ""
+            elif isinstance(embedding_value, str):
+                # Validate JSON
+                try:
+                    parsed = json.loads(embedding_value)
+                    if not isinstance(parsed, list):
+                        raise ValueError("invalid_embedding")
+                    # Kiểm tra phần tử là số hữu hạn
+                    if not all(isinstance(x, (int, float)) and -1e6 < x < 1e6 for x in parsed):
+                        raise ValueError("invalid_embedding")
+                    if not (1 <= len(parsed) <= 4096):
+                        raise ValueError("invalid_embedding")
+                    # OK, set embedding_model="manual"
+                    values["embedding"] = embedding_value
+                    values["embedding_model"] = "manual"
+                except (json.JSONDecodeError, TypeError):
+                    raise ValueError("invalid_embedding")
+
         clean = {key: value for key, value in values.items() if key in allowed}
-        if not clean or clean.keys() != values.keys():
+        if not clean:
+            raise ValueError("invalid_payload")
+        # Nếu có embedding hoặc embedding_model và không nằm trong clean, đó là lỗi
+        has_extra_keys = set(values.keys()) - set(clean.keys())
+        if has_extra_keys and "embedding" not in has_extra_keys and "embedding_model" not in has_extra_keys:
             raise ValueError("invalid_payload")
         for json_field in {
             "tool_chain",
@@ -1323,6 +1469,33 @@ class LearningEngine:
             clean["wiki_path"] = str(
                 self._validated_workflow_wiki_path(Path(str(clean["wiki_path"])))
             )
+
+        # Xử lý embedding="recompute" hoặc nếu content thay đổi mà embedding không được cung cấp
+        if kind == "learning":
+            if embedding_value == "recompute":
+                # Lấy content hiện tại (nếu có trong clean) hoặc từ DB
+                content_to_embed = clean.get("content")
+                if not content_to_embed:
+                    conn = self._get_learning_db()
+                    row = conn.execute("SELECT content FROM learnings WHERE id=?", (record_id,)).fetchone()
+                    conn.close()
+                    if row:
+                        content_to_embed = row["content"]
+                if content_to_embed:
+                    emb_json, emb_model = self._embedding_fields(content_to_embed)
+                    if not emb_json:  # embedder tắt: giữ nguyên vector cũ, không ghi đè bằng chuỗi rỗng
+                        raise ValueError("embedder_unavailable")
+                    clean["embedding"] = emb_json
+                    clean["embedding_model"] = emb_model
+                # Xoá embedding khỏi clean vì đã xử lý
+                if "embedding" in clean and clean["embedding"] == "recompute":
+                    del clean["embedding"]
+            elif "content" in clean and "embedding" not in clean:
+                # Content thay đổi mà embedding không được cung cấp → tính lại
+                emb_json, emb_model = self._embedding_fields(clean["content"])
+                clean["embedding"] = emb_json
+                clean["embedding_model"] = emb_model
+
         conn = self._get_learning_db()
         if kind == "learning" and "semantic_key" in clean:
             duplicate = conn.execute(
@@ -1446,9 +1619,21 @@ class LearningEngine:
                 if row["type"] == "preference"
                 else LESSONS_WIKI_PATH
             )
+            # Không chứa embedding full (quá dài), thay bằng embedding_dim
+            preview_record = dict(row)
+            try:
+                vec = json.loads(preview_record.get("embedding", "")) if preview_record.get("embedding") else None
+                embedding_dim = len(vec) if vec and isinstance(vec, list) else 0
+            except (TypeError, json.JSONDecodeError):
+                embedding_dim = 0
+            preview_record["embedding_dim"] = embedding_dim
+            # Bỏ embedding khỏi preview để JSON không quá lớn
+            if "embedding" in preview_record:
+                del preview_record["embedding"]
+
             return {
                 "will_delete": {
-                    "records": [dict(row)],
+                    "records": [preview_record],
                     "wiki_paths": [str(wiki_path)],
                 },
                 "will_update": [],
@@ -1496,9 +1681,19 @@ class LearningEngine:
     def delete_learning_control_record(
         self, kind: str, record_id: int
     ) -> bool:
-        preview = self.preview_learning_dependencies(kind, record_id)
+        preview = self.preview_learning_dependencies(kind, record_id)  # workflow/outcome dùng bên dưới
         if kind == "learning":
-            learning = preview["will_delete"]["records"][0]
+            # Preview đã bỏ embedding (để hộp xác nhận gọn): đọc lại toàn bộ dòng TRƯỚC khi xoá để khôi phục khi lỗi
+            conn = self._get_learning_db()
+            full_row = conn.execute(
+                "SELECT * FROM learnings WHERE id=?", (record_id,)
+            ).fetchone()
+            if not full_row:
+                conn.close()
+                raise LookupError("not_found")
+            learning = dict(full_row)
+            conn.close()
+
             wiki_paths = {PREFERENCES_WIKI_PATH, LESSONS_WIKI_PATH}
             wiki_backups = {
                 path: (

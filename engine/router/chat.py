@@ -55,20 +55,10 @@ async def build_chat_messages(kind: str, text: str, ctx) -> tuple[list[dict], st
         from engine.prompts import catalog
         reference_data["agent_names"] = catalog.agent_names_text()
 
-    # Learned experiences (lessons only, không nạp key facts vì đã có trong <about_user>)
-    if route == "general":  # bài học giao tiếp chỉ cho chat; tra cứu (general_knowledge) không cần
-        try:
-            from engine.core.learning import get_learning_engine
-            db_engine = get_learning_engine()
-            # Chỉ bài học (type lesson): sở thích/sự thật đã ở <about_user> — mỗi dữ liệu một kênh
-            learnings = [l for l in await asyncio.to_thread(db_engine.recall_learnings, text, 10)
-                         if l.get("type") == "lesson"][:3]
-            if learnings:
-                reference_data["lessons"] = [f"{l['content']} (Nguồn: {l.get('source', '')})" for l in learnings]
-            # Không nạp kết quả agent gần nhất (2026-09-27): "[email] xem email → thành công" ở mọi lượt chat làm
-            # model đề nghị lại chính tool đó. Câu trả lời của agent đã nằm trong lịch sử.
-        except Exception as le:
-            log.warning(f"Failed to load learned experiences: {le}")
+    # Bài học hành vi giờ nằm trong khối <style> của system prompt (không phải reference)
+    # recall_learnings đã bỏ; get_behaviour_rules được gọi trong build_chat_system_prompt
+    # Không nạp kết quả agent gần nhất (2026-09-27): "[email] xem email → thành công" ở mọi lượt chat làm
+    # model đề nghị lại chính tool đó. Câu trả lời của agent đã nằm trong lịch sử.
 
     # Lịch sử hội thoại từ DB (cùng nguồn với gate)
     try:

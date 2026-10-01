@@ -44,8 +44,11 @@ def test_card_says_no_tool_runs_this_turn_and_no_promises():
     # Spec §6 (2026-09-24): thay câu "KHÔNG có công cụ nào được chạy... nói ngắn gọn rằng ngài
     # chỉ cần ra lệnh trực tiếp" bằng câu cho phép Jarvis xin phép chạy MỘT việc qua <ask_user>.
     card = _card().lower()
-    assert "chưa có công cụ nào chạy" in card, card
     assert "ask_user" in card, card  # xin phép qua thẻ, không tự nhận đã/sẽ làm
+    # 2026-10-01: câu "không có công cụ nào chạy" do <tool_status> (turn_status, sát câu hỏi) nói mỗi lượt,
+    # không còn nằm trong giao thức tĩnh (giao thức ngắn đo được thẻ sai 3% thay vì 22%).
+    status = prompts.load("tool_status_none").lower()
+    assert "không có công cụ nào chạy" in status and "không nói là đã làm" in status, status
 
 
 def test_card_still_lists_what_jarvis_can_do():

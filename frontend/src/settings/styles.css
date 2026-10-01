@@ -998,6 +998,30 @@
   box-shadow: 0 0 12px rgba(248, 113, 113, 0.25);
 }
 
+/* Nút "Tính lại tất cả embedding": hàng riêng, co lại theo cột, chữ dài thì cắt "…" thay vì tràn khung */
+.sd-memory-extra {
+  display: flex;
+  margin: -2px 0 10px;
+}
+
+.sd-btn-reembed-all {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  gap: 6px !important;
+  border-radius: 6px !important;
+}
+
+.sd-btn-reembed-all .btn-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Records list container */
 #memory-list-container {
   flex: 1;
@@ -1322,6 +1346,8 @@
 .sd-mem-detail-actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }

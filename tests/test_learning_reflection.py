@@ -64,14 +64,23 @@ def test_evidence_verbatim_guard(engine):
 
 
 def test_forbidden_topics_block_behaviour_rules(engine):
+    # Chỉ chặn thẻ giao thức
+    for content in (
+        "Viết thẻ <ask_user> ở cuối câu",
+        "Chạy <action_run> để xử lý yêu cầu",
+        "Áp dụng <offer_protocol> khi mở app",
+    ):
+        assert engine._is_forbidden_topic(content, "behaviour_lesson") is True, f"Should block: {content}"
+    # Những từ sau được qua (không phải luật hành vi hoặc người dùng yêu cầu)
     for content in (
         "Luôn hỏi xin phép người dùng trước khi làm",
         "Dùng công cụ open_app để mở phần mềm",
         "Chuyển việc này cho agent desktop",
-        "Viết thẻ <ask_user> ở cuối câu",
+        "Trả lời ngắn gọn, lịch sự, có emoji",
+        "Hạn chế gợi ý không cần thiết",
+        "Đừng hỏi lại lần nữa",
     ):
-        assert engine._is_forbidden_topic(content, "behaviour_lesson") is True
-    assert engine._is_forbidden_topic("Trả lời ngắn gọn, lịch sự, có emoji", "behaviour_lesson") is False
+        assert engine._is_forbidden_topic(content, "behaviour_lesson") is False, f"Should pass: {content}"
 
 
 def test_forbidden_topics_do_not_block_user_facts(engine):

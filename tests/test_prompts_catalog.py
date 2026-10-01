@@ -5,7 +5,6 @@ import pytest
 
 from engine.orchestrator.registry import AGENT_REGISTRY
 
-# OFFERABLE_TOOLS baseline (15 tools)
 EXPECTED_OFFERABLE_TOOLS = {
     "open_app": ("desktop", "mở ứng dụng"),
     "close_app": ("desktop", "đóng ứng dụng"),
@@ -16,12 +15,16 @@ EXPECTED_OFFERABLE_TOOLS = {
     "get_market_data": ("search", "giá vàng/xăng/tỷ giá"),
     "get_cgv_movies": ("search", "lịch chiếu phim"),
     "get_epic_free_games": ("search", "game miễn phí"),
-    "search_media": ("media", "mở nhạc/video"),
+    "search_media": ("media", "mở nhạc/phim/video"),
     "cap_screen": ("vision", "chụp màn hình"),
     "read_screen": ("vision", "xem màn hình"),
     "take_note": ("notes", "ghi chú"),
     "query_history": ("history", "xem lại lịch sử trò chuyện"),
     "get_vannien_data": ("search", "lịch vạn niên"),
+    "legal_lookup": ("legal", "tra cứu pháp luật"),
+    "get_zodiac_data": ("search", "tra cứu cung hoàng đạo"),
+    "search_products": ("search", "tra cứu giá sản phẩm"),
+    "vietlott_analysis": ("vietlott", "phân tích vietlott"),
 }
 
 EXPECTED_AGENT_CRITERIA = """
@@ -33,7 +36,7 @@ EXPECTED_AGENT_CRITERIA = """
 - vietlott: Phân tích kết quả Mega 6/45, Power 6/55.
 - vision: Chỉ khi người dùng yêu cầu chụp/xem màn hình ngay bây giờ.
 - webcam: Chỉ khi người dùng yêu cầu xem/dùng webcam hoặc camera trực tiếp.
-- media: Nghe nhạc, xem livestream, xem video Youtube.
+- media: Nghe nhạc, xem phim, xem livestream, xem video Youtube.
 - history: Chỉ khi người dùng chủ động yêu cầu xem lại lịch sử trò chuyện cũ. KHÔNG dùng cho chat/phản hồi/nối tiếp thông thường.
 - notes: Ghi lại, hiển thị danh sách, hoặc xoá note.
 - project: Kiểm tra project, quét lỗi cú pháp, báo cáo sức khỏe, lịch sử vá lỗi.
@@ -117,7 +120,7 @@ def test_offerable_tools_matches_spec():
 
     offers = catalog.offerable_tools()
     assert offers == EXPECTED_OFFERABLE_TOOLS, f"Difference: {set(offers.items()) ^ set(EXPECTED_OFFERABLE_TOOLS.items())}"
-    assert len(offers) == 15
+    assert len(offers) == 19
 
 
 def test_agent_criteria_matches_spec_verbatim():

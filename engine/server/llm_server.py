@@ -42,7 +42,6 @@ MODEL_PROFILES = {
         "repetition_penalty": 1.0,
         "max_thinking": 16384, "max_instruct": 8192,
         "think_start": "<think>", "think_end": "</think>",
-        "think_inject": None,  # Qwen tự bật thinking theo template, không chèn token
         "merge_system_first": True,  # template Qwen/Bonsai bắt system đứng đầu
         "native_tools": True,
     },
@@ -56,20 +55,19 @@ MODEL_PROFILES = {
         "repetition_penalty": 1.0,
         "max_thinking": 16384, "max_instruct": 8192,
         "think_start": "<think>", "think_end": "</think>",
-        "think_inject": None,
         "merge_system_first": True,
         "native_tools": True,
     },
-    # Gemma 4: custom config, thinking kích bằng token <|think|> + reasoning flag.
+    # Gemma 4: custom config, thinking kích bằng reasoning flag.
+    # Note: Không chèn tay <|think|> vì template Gemma 4 tự bật thinking theo enable_thinking=true
     "gemma": {
-        "temp_thinking": 1.0, "temp_instruct": 0.4,
-        "top_p_thinking": 0.95, "top_p_instruct": 0.8,
-        "top_k": 40, "min_p_thinking": 0.5, "min_p_instruct": 0.0,
+        "temp_thinking": 1.0, "temp_instruct": 1.0,
+        "top_p_thinking": 0.95, "top_p_instruct": 0.95,
+        "top_k": 64, "min_p_thinking": 0.0, "min_p_instruct": 0.0,
         "presence_thinking": 0.0, "presence_instruct": 0.0,
         "repetition_penalty": None,
         "max_thinking": 16384, "max_instruct": 8192,
         "think_start": "<|channel>thought", "think_end": "<channel|>",
-        "think_inject": "<|think|>",
         "merge_system_first": False,  # Gemma chịu được system giữa hội thoại
         "native_tools": True,
     },
@@ -105,20 +103,39 @@ def vision_model_name() -> str | None:
     return active_model_name() if not v or v.lower() == "auto" else v
 
 
+def reasoning_controls(thinking: bool) -> dict:
+    """Phần extra_body điều khiển reasoning, theo docs/llama.cpp_server_readme_new.md (dòng 1318-1322).
+    reasoning_format="deepseek": thought luôn nằm ở message.reasoning_content, KHÔNG lọt vào content
+    (với "none", server trả nguyên "<|channel>thought…" trong content)."""
+    controls = {"chat_template_kwargs": {"enable_thinking": thinking}, "reasoning_format": "deepseek"}
+    if not thinking:
+        controls["reasoning_effort"] = "none"
+    return controls
+
+
+def sampling_params(thinking: bool = False, temperature: float | None = None) -> dict:
+    """Mọi tham số lấy mẫu, từ profile đang chạy. temperature=None → mặc định profile; số tường minh
+    (kể cả 0.0) luôn thắng. Chọn công cụ / phân loại / trích JSON phải truyền temperature=0.0 tường minh
+    (khi temperature=0 thì top_p/top_k/min_p không còn tác dụng)."""
+    prof = active_model_profile()
+    mode = "thinking" if thinking else "instruct"
+    extra = {"top_k": prof["top_k"], "min_p": prof[f"min_p_{mode}"]}
+    if prof["repetition_penalty"] is not None:
+        extra["repetition_penalty"] = prof["repetition_penalty"]
+    return {"temperature": prof[f"temp_{mode}"] if temperature is None else temperature,
+            "top_p": prof[f"top_p_{mode}"], "presence_penalty": prof[f"presence_{mode}"], "extra_body": extra}
+
+
 def vision_request_kwargs() -> dict:
     """Tham số cho request vision/OCR (chế độ instruct, tắt thinking) theo model đang chạy.
-    Trùng giá trị nhánh instruct của call_llm; tách riêng để không đụng call_llm (nhiều phụ thuộc)."""
-    gemma = _is_gemma()
+    Dựng từ sampling_params(False) + reasoning_controls(False)."""
+    sp = sampling_params(False)
+    rc = reasoning_controls(False)
     return {
-        "temperature": 0.4 if gemma else 0.7,
-        "top_p": 0.8,
-        "presence_penalty": 0.0 if gemma else 1.5,
-        "extra_body": {
-            "top_k": 40 if gemma else 20,
-            "min_p": 0.0,
-            "reasoning": "off",
-            "chat_template_kwargs": {"enable_thinking": False},
-        },
+        "temperature": sp["temperature"],
+        "top_p": sp["top_p"],
+        "presence_penalty": sp["presence_penalty"],
+        "extra_body": {**sp["extra_body"], **rc},
     }
 
 
@@ -268,13 +285,26 @@ def strip_think(content: str) -> str:
     if active_model_key() == "gemma":
         # Thẻ đóng thật là "<channel|>"; bản cũ viết "</channel|>" khiến "|" thành toán tử "hoặc"
         # của regex và xoá mọi ký tự ">" khỏi câu trả lời.
-        content = re.sub(r'<\|channel>thought.*?<channel\|>', '', content, flags=re.DOTALL)
-        if start in content:
+        # Xoá tag + newline/tab liền sau
+        content = re.sub(r'<\|channel>thought.*?<channel\|>[\n\t]*', '', content, flags=re.DOTALL)
+        # Nếu chỉ có thẻ đóng mà không có thẻ mở (server đã prefill thẻ mở vào prompt),
+        # bỏ mọi thứ từ đầu tới hết thẻ đóng
+        if "<channel|>" in content and start not in content:
+            end_idx = content.find("<channel|>")
+            if end_idx != -1:
+                content = content[end_idx + len("<channel|>"):].lstrip()
+        elif start in content:
             content = content.split(start)[0]
     else:
-        content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
-        if start in content:
+        # Tương tự cho Qwen/Bonsai
+        content = re.sub(r'<think>.*?</think>[\n\t]*', '', content, flags=re.DOTALL)
+        if "</think>" in content and start not in content:
+            end_idx = content.find("</think>")
+            if end_idx != -1:
+                content = content[end_idx + len("</think>"):].lstrip()
+        elif start in content:
             content = content.split(start)[0]
+    # Không gộp khoảng trắng: hàm này chạy trên mọi câu trả lời, bảng/danh sách Markdown phải còn nguyên dòng.
     return content.strip()
 
 
@@ -350,45 +380,22 @@ async def _call_llm_inner(
         rest = [m for m in cleaned if m.get("role") != "system"]
         cleaned = [{"role": "system", "content": "\n\n".join(p for p in sys_parts if p)}] + rest
 
-    # 1. Khởi tạo extra_body chứa các tham số riêng theo profile hãng
-    extra_body = {"top_k": prof["top_k"]}
-    if prof["repetition_penalty"] is not None:
-        extra_body["repetition_penalty"] = prof["repetition_penalty"]
+    # Xây dựng sampling params (temperature, top_p, presence_penalty) + extra_body (top_k, min_p, ...)
+    sp = sampling_params(thinking, temperature)
+    extra_body = {**sp["extra_body"], **reasoning_controls(thinking)}
 
-    # 2. Xây dựng tham số chuẩn và mở rộng dựa trên mode (Thinking hay Instruct)
+    # Tính max_tokens mặc định theo mode
     mode = "thinking" if thinking else "instruct"
-    temp = prof[f"temp_{mode}"] if temperature is None else temperature
-    top_p = prof[f"top_p_{mode}"]
-    presence_penalty = prof[f"presence_{mode}"]
     default_max_tokens = prof[f"max_{mode}"]
-    extra_body.update({
-        "min_p": prof[f"min_p_{mode}"],
-        "reasoning": "on" if thinking else "off",
-        "chat_template_kwargs": {"enable_thinking": thinking},
-    })
 
-    if thinking and prof["think_inject"]:
-        # Gemma 4 triggers thinking with <|think|> in system prompt,
-        # or with specific reasoning control variables on llama.cpp.
-        has_system = False
-        for msg in cleaned:
-            if msg.get("role") == "system":
-                has_system = True
-                sys_content = msg.get("content", "")
-                if sys_content and prof["think_inject"] not in sys_content:
-                    msg["content"] = prof["think_inject"] + "\n" + sys_content
-                break
-        if not has_system:
-            cleaned.insert(0, {"role": "system", "content": prof["think_inject"]})
-
-    # 3. Đóng gói tham số gửi đi
+    # Đóng gói tham số gửi đi
     params = {
         "model": model_name,
         "messages": cleaned,
-        "temperature": temp,
-        "top_p": top_p,
+        "temperature": sp["temperature"],
+        "top_p": sp["top_p"],
         "max_tokens": max_tokens if max_tokens is not None else default_max_tokens,
-        "presence_penalty": presence_penalty,
+        "presence_penalty": sp["presence_penalty"],
         "extra_body": extra_body,
         "stream": stream,
     }
@@ -408,8 +415,8 @@ async def _call_llm_inner(
         model_name,
         thinking,
         stream,
-        temp,
-        top_p,
+        sp["temperature"],
+        sp["top_p"],
         extra_body.get("top_k"),
         extra_body.get("min_p"),
         params["max_tokens"],
@@ -437,6 +444,9 @@ async def _call_llm_inner(
                     delta = chunk.choices[0].delta
                     if hasattr(delta, "content") and delta.content:
                         delta.content = stripper.process(delta.content)
+                    # reasoning_content không nên hiển thị cho consumer (nằm ở delta.reasoning_content)
+                    if hasattr(delta, "reasoning_content"):
+                        delta.reasoning_content = None
                     yield chunk
                 if last_usage:
                     cached_t = 0

@@ -1434,7 +1434,6 @@ MemoryControlKind = Literal[
     "memory",
     "workflow",
     "outcome",
-    "registry",
     "conversation",
 ]
 
@@ -1655,6 +1654,24 @@ async def api_learnings_delete(id: int):
         return {"success": False, "error": str(e)}
 
 
+class EmbedRecomputeBody(BaseModel):
+    id: int | None = None
+
+
+@router.post("/api/learnings/reembed")
+async def api_learnings_reembed(body: EmbedRecomputeBody):
+    """Tính lại embedding cho một bản ghi học (id) hoặc tất cả (id=null)."""
+    try:
+        from engine.core.learning import get_learning_engine
+        result = await asyncio.to_thread(
+            get_learning_engine().reembed_learnings,
+            body.id,
+        )
+        return {"success": "error" not in result, **result}  # embedder tắt: updated=0 + error → UI báo lỗi
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 class MemoryUpdateBody(BaseModel):
     id: int
     content: str
@@ -1750,20 +1767,6 @@ async def api_outcomes_list(
             agent,
         )
         return {"success": True, "outcomes": page["items"], **page}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@router.get("/api/memory-registry/list")
-async def api_memory_registry_list(
-    q: str = "", limit: int = 50, offset: int = 0
-):
-    try:
-        from engine.core.memory import list_registry_records
-        page = await asyncio.to_thread(
-            list_registry_records, q, limit, offset
-        )
-        return {"success": True, "registry": page["items"], **page}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

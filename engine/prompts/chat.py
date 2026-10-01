@@ -127,15 +127,41 @@ def build_chat_system_prompt() -> str:
         prompts.load("offer_protocol", offerable_tools=catalog.tool_list_text())
     )
 
-    # <style>: chỉ thị phong cách từ STYLE.md
+    # <style>: chỉ thị phong cách từ STYLE.md + bài học hành vi từ learning engine
+    style_parts = []
     se_path = PROJECT_ROOT / "skills" / "self_evolution" / "STYLE.md"
     if se_path.exists():
         try:
             se_content = se_path.read_text(encoding="utf-8").strip()
             if se_content:
-                parts.append(f"<style>\n{se_content}\n</style>")
+                style_parts.append(se_content)
         except Exception as se_err:
             log.warning("Failed to read self_evolution STYLE.md: %s", se_err)
+
+    # Thêm bài học hành vi từ DB
+    try:
+        from engine.core.learning import get_learning_engine
+        behaviour_rules = get_learning_engine().get_behaviour_rules(limit=5, max_chars=600)
+        # Lọc bỏ bài học đã có trong STYLE.md để tránh lặp
+        if style_parts and behaviour_rules:
+            style_text = style_parts[0]
+            filtered_rules = []
+            for rule in behaviour_rules:
+                if rule.strip() not in style_text:
+                    filtered_rules.append(f"- {rule}")
+            if filtered_rules:
+                behaviour_text = "\n".join(filtered_rules)
+                style_parts.append(behaviour_text)
+        elif behaviour_rules:
+            behaviour_text = "\n".join(f"- {rule}" for rule in behaviour_rules)
+            style_parts.append(behaviour_text)
+    except Exception as lr_err:
+        log.debug("Failed to load behaviour rules: %s", lr_err)
+
+    # Tạo khối <style> nếu có content (hoặc chỉ bài học mà không có STYLE.md)
+    if style_parts:
+        style_content = "\n\n".join(style_parts)
+        parts.append(f"<style>\n{style_content}\n</style>")
 
     # <about_user>: thông tin người dùng từ Preferences.md (không lặp với memories)
     about = about_user_block()
@@ -259,15 +285,8 @@ def build_chat_messages(
     # Block 4: Reference THAM KHẢO (nếu có)
     ref_items = []
     if reference_data:
-        # 1. Bài học (lessons)
-        lessons = reference_data.get("lessons", [])
-        if lessons:
-            lessons_str = "\n".join(f"- {l}" for l in lessons)
-            ref_items.append(
-                f"<learned_experiences>\n{lessons_str}\n</learned_experiences>"
-            )
-
-        # 2. Kết quả agent thành công (bỏ VERIFIED, bỏ thất bại)
+        # 1. Kết quả agent thành công (bỏ VERIFIED, bỏ thất bại)
+        # Bài học hành vi đã được nạp vào <style> của system prompt
         agent_results = reference_data.get("agent_results", [])
         clean_results = []
         for r in agent_results:

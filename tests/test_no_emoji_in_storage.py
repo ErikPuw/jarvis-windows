@@ -20,7 +20,7 @@ def _learnings_db(tmp) -> str:
     conn.execute(
         "CREATE TABLE learnings (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, "
         "semantic_key TEXT DEFAULT '', content TEXT, source TEXT, importance INTEGER, "
-        "created_at REAL, embedding TEXT DEFAULT '')"
+        "created_at REAL, embedding TEXT DEFAULT '', embedding_model TEXT DEFAULT '')"
     )
     conn.execute(
         "CREATE TABLE agent_outcomes (id INTEGER PRIMARY KEY AUTOINCREMENT, agent TEXT, "
@@ -66,22 +66,6 @@ def test_store_learning_strips_emoji():
         assert le._store_learning(f"Thích cà phê buổi sáng {EMOJI}", "preference", "coffee")
         row = _fetchone(le, "SELECT content FROM learnings")
         assert EMOJI not in row["content"] and "Thích cà phê" in row["content"], row["content"]
-
-
-def test_store_outcome_lesson_strips_emoji():
-    with tempfile.TemporaryDirectory() as tmp:
-        db = _learnings_db(tmp)
-        le = _fresh_engine(db)
-        conn = sqlite3.connect(db)
-        conn.execute(
-            "INSERT INTO agent_outcomes (agent, query, status, result, traces, created_at) "
-            "VALUES ('search', 'q', 'success', 'r', '[{\"outcome\": \"success\"}]', 0)"
-        )
-        conn.commit()
-        conn.close()
-        assert le.store_outcome_lesson(1, f"Dùng agent_search khi hỏi giá {EMOJI}", "search")
-        row = _fetchone(le, "SELECT content FROM learnings")
-        assert EMOJI not in row["content"], row["content"]
 
 
 def test_store_routing_correction_strips_emoji_from_payload():
@@ -144,7 +128,6 @@ def test_store_validated_workflow_strips_emoji_from_intent_and_samples():
 
 if __name__ == "__main__":
     test_store_learning_strips_emoji()
-    test_store_outcome_lesson_strips_emoji()
     test_store_routing_correction_strips_emoji_from_payload()
     test_store_validated_workflow_strips_emoji_from_intent_and_samples()
     print("ok")

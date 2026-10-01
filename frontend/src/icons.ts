@@ -11,7 +11,7 @@ import {
   Video, VideoOff, Mic, MicOff, Volume2, VolumeX, SquareTerminal, X,
   PanelRight, PanelRightClose, History, MapPin, EllipsisVertical, Plus, ChevronDown,
   Paperclip, Send, LoaderCircle, Check, CircleDashed,
-  Save, PlugZap, Upload, Trash2, type IconNode,
+  Save, PlugZap, Upload, Trash2, RefreshCw, type IconNode,
   AppWindow, Monitor, Moon, Mail, Bird, Image, Scale, Music, NotebookPen, FolderOpen,
   Wrench, FileText, Search, Shield, Ticket, Eye, Camera, Bot, Slash, AtSign,
 } from "lucide";
@@ -101,7 +101,7 @@ export function makeIcon(icon: IconNode, size = 18, strokeWidth = 1.75): MorphIc
   return mi;
 }
 
-const ACTION_ICON = { save: Save, test: PlugZap, upload: Upload, delete: Trash2 } as const;
+const ACTION_ICON = { save: Save, test: PlugZap, upload: Upload, delete: Trash2, refresh: RefreshCw } as const;
 export type ActionKind = keyof typeof ACTION_ICON;
 const ACTION_FEEDBACK_MS = 1200;
 

@@ -108,28 +108,10 @@ def _extract_bullets(md_text: str) -> list[str]:
     return [line.strip() for line in md_text.splitlines() if line.strip().startswith("- ")]
 
 
-# Measured on the real log: 0.80 merged "news" and "price" routing rules (a wrong merge
-# silently drops a real rule), 0.83 kept them apart; 0.85 leaves margin. A missed
-# paraphrase is harmless, a wrong merge is not, so err high.
-_EMBED_SIMILAR = 0.85
-_VEC_CACHE: dict[str, list] = {}
-
-
-def _vec(norm_text: str) -> list | None:
-    """Embedding via the same embedder Learning uses; None when it is unavailable."""
-    if norm_text not in _VEC_CACHE:
-        from engine.core.learning import LearningEngine
-        v = LearningEngine._embed_text(norm_text)
-        if v is None:
-            return None
-        _VEC_CACHE[norm_text] = v
-    return _VEC_CACHE[norm_text]
-
-
 def _similar(a: str, b: str) -> bool:
-    """Same rule, reworded or extended? Cheap text checks first (near-identical, or the
-    shorter one contained in the other), then embedding cosine for rewrites that share
-    few words. Embedder down -> text checks only."""
+    """Same rule, reworded or extended? Cheap text checks only: near-identical (difflib ≥ 0.8)
+    or the shorter one shares ≥ 80% of its words with the other (min 4 words). No embedding used:
+    e5-small's cosine cannot distinguish topics (đo 2026-10-01)."""
     norm = lambda s: re.sub(r"\W+", " ", s).strip().lower()
     na, nb = norm(a), norm(b)
     if difflib.SequenceMatcher(None, na, nb).ratio() >= 0.8:
@@ -137,11 +119,7 @@ def _similar(a: str, b: str) -> bool:
     wa, wb = set(na.split()), set(nb.split())
     if min(len(wa), len(wb)) >= 4 and len(wa & wb) / min(len(wa), len(wb)) >= 0.8:
         return True
-    va, vb = _vec(na), _vec(nb)
-    if not va or not vb:
-        return False
-    from engine.core.learning import LearningEngine
-    return LearningEngine._cosine_similarity(va, vb) >= _EMBED_SIMILAR
+    return False
 
 
 def _merge_rules(new_text: str, old_text: str) -> str | None:
@@ -159,8 +137,8 @@ def _merge_rules(new_text: str, old_text: str) -> str | None:
     return None if set(_extract_bullets(new_text)) == set(old_b) else new_text
 
 
-# Measured against the real lessons: invented rules scored 0.38-0.67, real ones 0.76-0.98.
-_GROUNDED_COSINE = 0.72
+# Độ phủ từ vựng tối thiểu: luật có căn cứ khi ≥ 40% số từ (đã bỏ dấu) của luật nằm trong một bài học nguồn
+_GROUNDED_OVERLAP = 0.4
 
 
 def _entries(text: str) -> list[str]:
@@ -170,16 +148,17 @@ def _entries(text: str) -> list[str]:
 
 def _bad_rule(line: str, sources: list[str], routing: bool) -> str | None:
     """Why this rule must not be written, else None: it names an agent/@control usage
-    that does not exist, or no lesson supports it (the LLM invented it). Can't verify
-    (embedder down) -> refuse: a wrong rule goes into every prompt, a skipped run costs nothing."""
+    that does not exist, or no lesson supports it (the LLM invented it). Grounding (cả luật STYLE
+    lẫn routing) dùng độ phủ từ vựng của luật trong bài học nguồn, không dùng cosine embedding
+    (e5-small không phân biệt được chủ đề; đo 2026-10-01)."""
     if not routing:
-        forbidden = ["hỏi", "xin phép", "công cụ", "tool", "agent", "thẻ", "<ask_user>", "<action_run>", "<offer_protocol>"]
+        # Luật STYLE chỉ bị chặn khi chứa chính các thẻ giao thức; hỏi/gợi ý/công cụ là phong cách hợp lệ.
+        forbidden = ["<ask_user>", "<action_run>", "<offer_protocol>"]
         line_lower = line.lower()
         for kw in forbidden:
             if kw in line_lower:
                 return f"luật STYLE vi phạm chủ đề bị cấm ({kw}): do persona, soul_rules và offer_protocol quản lý độc quyền"
-
-    if routing:
+    else:
         from engine.orchestrator.registry import AGENT_REGISTRY
         known = set(AGENT_REGISTRY) | {f"agent_{k}" for k in AGENT_REGISTRY} | {"agent_control"}
         if re.search(r"@control\s+`?agent_(?!control)", line):
@@ -187,14 +166,17 @@ def _bad_rule(line: str, sources: list[str], routing: bool) -> str | None:
         unknown = [t for t in re.findall(r"\bagent_[a-z_]+", line) if t not in known]
         if unknown:
             return f"agent không tồn tại: {unknown[0]}"
+
+    # Căn cứ: ≥ _GROUNDED_OVERLAP số từ của luật phải xuất hiện trong một bài học nguồn
+    from engine.core.learning import _lexical_tokens
     norm = lambda s: re.sub(r"\W+", " ", s).strip().lower()
-    v = _vec(norm(line))
-    if v is None:
-        return "không kiểm chứng được (embedder không sẵn sàng)"
-    from engine.core.learning import LearningEngine
+    line_tokens = _lexical_tokens(norm(line))
+    if not line_tokens:
+        return "không có bài học nào làm căn cứ"
+
     for s in sources:
-        sv = _vec(norm(s))
-        if sv and LearningEngine._cosine_similarity(v, sv) >= _GROUNDED_COSINE:
+        source_tokens = _lexical_tokens(norm(s))
+        if source_tokens and len(line_tokens & source_tokens) / len(line_tokens) >= _GROUNDED_OVERLAP:
             return None
     return "không có bài học nào làm căn cứ"
 

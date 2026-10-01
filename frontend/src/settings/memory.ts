@@ -24,7 +24,6 @@ type MemoryCategoryId =
   | "memory"
   | "workflow"
   | "outcome"
-  | "registry"
   | "conversation"
   | "notes";
 
@@ -51,17 +50,15 @@ const MEMORY_CATEGORIES: MemoryCategory[] = [
   { id: 'memory', label: "Memories", endpoint: "/api/memories/list", responseKey: "memories", color: "#10b981", icon: Sparkles, activeIcon: Database },
   { id: 'workflow', label: "Workflows", endpoint: "/api/workflows/list", responseKey: "workflows", color: "#22d3ee", icon: Workflow, activeIcon: RotateCw },
   { id: 'outcome', label: "Agent Outcomes", endpoint: "/api/outcomes/list", responseKey: "outcomes", color: "#f59e0b", icon: Target, activeIcon: CheckCheck },
-  { id: 'registry', label: "Registry", endpoint: "/api/memory-registry/list", responseKey: "registry", color: "#f472b6", icon: Layers, activeIcon: Bookmark },
   { id: 'conversation', label: "Conversations", endpoint: "/api/conversations", responseKey: "conversations", color: "#60a5fa", icon: MessageSquare, activeIcon: MessagesSquare },
   { id: 'notes', label: "Notes", endpoint: "/api/notes/list", responseKey: "notes", color: "#94a3b8", icon: FileText, activeIcon: FileCheck },
 ];
 
 const EDITABLE_MEMORY_FIELDS: Record<MemoryCategoryId, string[]> = {
-  learning: ["type", "semantic_key", "content", "source", "importance"],
+  learning: ["type", "semantic_key", "content", "source", "importance", "embedding"],
   memory: ["type", "content", "source", "importance"],
   workflow: ["agent", "intent", "tool_chain", "argument_keys", "sample_queries", "success_evidence", "validation_count", "status", "wiki_path"],
   outcome: ["agent", "query", "status", "result", "traces"],
-  registry: ["semantic_key", "mem_type", "memory_id", "wiki_scope"],
   conversation: ["role", "content", "session_id"],
   notes: ["title", "content", "tags"],
 };
@@ -135,6 +132,9 @@ function formatFieldLabel(field: string): string {
     tags: "Nhãn thẻ (Tags)",
     role: "Vai trò (Role)",
     session_id: "Phiên làm việc (Session ID)",
+    embedding: "Vector embedding (JSON, để trống = xoá, gõ recompute = tính lại)",
+    embedding_dim: "Số chiều embedding",
+    embedding_model: "Model embedding",
   };
   if (map[field]) return map[field];
   return field
@@ -170,7 +170,6 @@ function renderMemoryCategoryNav(): void {
     memory: "memories",
     workflow: "workflows",
     outcome: "outcomes",
-    registry: "registry",
     conversation: "conversations",
   };
 
@@ -288,7 +287,7 @@ function memoryItemPreview(item: MemoryItem): string {
 
 function renderMemoryField(field: string, value: unknown): string {
   const text = memoryValueText(value);
-  const isLong = ["content", "result", "traces", "tool_chain", "argument_keys", "sample_queries", "success_evidence"].includes(field);
+  const isLong = ["content", "result", "traces", "tool_chain", "argument_keys", "sample_queries", "success_evidence", "embedding"].includes(field);
   const isNumber = ["importance", "validation_count", "memory_id"].includes(field);
   const typeTag = isNumber ? "Số" : (isLong ? "Văn bản lớn" : "Chuỗi ký tự");
   const control = isLong
@@ -314,6 +313,26 @@ function renderMemoryItems(): void {
   if (!list || !detail) return;
   const category = MEMORY_CATEGORIES.find(item => item.id === activeMemoryKind)!;
   renderMemoryCategoryNav();
+
+  // Nút "Tính lại tất cả embedding": hàng riêng dưới toolbar (toolbar hẹp, nhét chung sẽ tràn khung); chỉ cho Learnings.
+  const toolbar = list.parentElement?.querySelector(".sd-memory-toolbar");
+  if (toolbar) {
+    const row = list.parentElement!.querySelector<HTMLElement>("#memory-reembed-row");
+    if (activeMemoryKind === "learning") {
+      if (!row) {
+        const newRow = document.createElement("div");
+        newRow.id = "memory-reembed-row";
+        newRow.className = "sd-memory-extra";
+        newRow.innerHTML = `<button type="button" class="settings-btn sd-btn-reembed-all" id="memory-reembed-all-btn" data-action="refresh"><span class="btn-label">Tính lại tất cả embedding</span></button>`;
+        const btn = newRow.querySelector<HTMLButtonElement>("button")!;
+        decorateActionButton(btn, "refresh");
+        btn.addEventListener("click", (e) => reembedAllLearnings(e.currentTarget as HTMLButtonElement));
+        toolbar.insertAdjacentElement("afterend", newRow);
+      }
+    } else if (row) {
+      row.remove();
+    }
+  }
   if (!activeMemoryItems.length) {
     list.innerHTML = `
       <div class="sd-mem-empty-box">
@@ -396,6 +415,11 @@ function renderMemoryItems(): void {
         <button class="settings-btn primary" id="memory-save-btn" data-memory-action="save" data-action="save">
           Lưu thay đổi
         </button>
+        ${activeMemoryKind === "learning" ? `
+        <button class="settings-btn" id="memory-reembed-btn" data-memory-action="reembed" data-action="refresh">
+          <span class="btn-label">Tính lại embedding</span>
+        </button>
+        ` : ""}
       </div>
     `;
     const badgeIconEl = detail.querySelector<HTMLElement>(".sd-mem-detail-badge-icon");
@@ -421,6 +445,26 @@ function renderMemoryItems(): void {
     bulkButton.disabled = bulkDeleting || bulkSelectedIds.size === 0;
   }
   updateMobileLayoutState();
+}
+
+async function reembedSelectedLearning(btn: HTMLButtonElement): Promise<void> {
+  const item = selectedMemoryItem();
+  if (!item || activeMemoryKind !== "learning") return;
+  await runAction(btn, async () => {
+    const result = await apiPost<{ success: boolean; updated?: number; error?: string }>("/api/learnings/reembed", { id: Number(item.id) });
+    if (!result.success) throw new Error(`Không thể tính lại embedding: ${result.error || "reembed_failed"}`);
+  }, `Đã tính lại embedding cho #${item.id}`);
+  await loadMemoryList();
+}
+
+async function reembedAllLearnings(btn: HTMLButtonElement): Promise<void> {
+  if (activeMemoryKind !== "learning") return;
+  await runAction(btn, async () => {
+    if (!confirm("Tính lại embedding cho TOÀN BỘ bản ghi học? Đây có thể mất vài phút.")) return false;
+    const result = await apiPost<{ success: boolean; updated?: number; error?: string }>("/api/learnings/reembed", { id: null });
+    if (!result.success) throw new Error(`Không thể tính lại embedding: ${result.error || "reembed_failed"}`);
+  }, `Đã tính lại embedding cho tất cả`);
+  await loadMemoryList();
 }
 
 /** Xoá lần lượt từng mục đã chọn qua API xoá hiện có (một lần xác nhận cho cả nhóm). */
@@ -616,5 +660,6 @@ export function initMemoryCenter(onDataChanged: () => Promise<unknown>): void {
     }
     if (action === "save") void saveSelectedMemoryRecord(btn!);
     if (action === "delete") void deleteSelectedMemoryRecord(btn!);
+    if (action === "reembed") void reembedSelectedLearning(btn!);
   });
 }

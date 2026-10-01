@@ -115,17 +115,6 @@ def init_db():
         );
 
         CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at DESC);
-
-        CREATE TABLE IF NOT EXISTS memory_registry (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            semantic_key TEXT NOT NULL,
-            mem_type TEXT NOT NULL,
-            memory_id INTEGER NOT NULL,
-            wiki_scope TEXT DEFAULT '',
-            updated_at REAL NOT NULL,
-            UNIQUE(mem_type, semantic_key)
-        );
-        CREATE INDEX IF NOT EXISTS idx_memory_registry_memory ON memory_registry(memory_id);
     """)
     # Cột ask_user (spec §6): câu Jarvis xin phép ở lượt đó; content giữ bản sạch cho FTS/UI/Telegram.
     if "ask_user" not in {r["name"] for r in conn.execute("PRAGMA table_info(messages)")}:
@@ -199,7 +188,7 @@ def _list_memory_table(
     limit: int,
     offset: int,
 ) -> dict:
-    if table not in {"memories", "memory_registry", "messages"}:
+    if table not in {"memories", "messages"}:
         raise ValueError("unsupported_table")
     page_limit = max(1, min(int(limit), 200))
     page_offset = max(0, int(offset))
@@ -247,20 +236,6 @@ def list_memory_records(
     )
 
 
-def list_registry_records(
-    q: str = "", limit: int = 50, offset: int = 0
-) -> dict:
-    return _list_memory_table(
-        "memory_registry",
-        "id, semantic_key, mem_type, memory_id, wiki_scope, updated_at",
-        ("semantic_key", "mem_type", "memory_id", "wiki_scope"),
-        "updated_at",
-        q,
-        limit,
-        offset,
-    )
-
-
 def list_conversation_records(
     q: str = "", limit: int = 50, offset: int = 0
 ) -> dict:
@@ -281,9 +256,6 @@ def get_memory_control_counts() -> dict[str, int]:
         return {
             "memories": conn.execute(
                 "SELECT COUNT(*) FROM memories"
-            ).fetchone()[0],
-            "registry": conn.execute(
-                "SELECT COUNT(*) FROM memory_registry"
             ).fetchone()[0],
             "conversations": conn.execute(
                 "SELECT COUNT(*) FROM messages"
@@ -370,9 +342,6 @@ def delete_memory(mem_id: int) -> bool:
         conn = _get_db()
         try:
             conn.execute("BEGIN IMMEDIATE")
-            conn.execute(
-                "DELETE FROM memory_registry WHERE memory_id=?", (mem_id,)
-            )
             affected = conn.execute(
                 "DELETE FROM memories WHERE id=?", (mem_id,)
             ).rowcount
@@ -440,10 +409,6 @@ def update_memory_control_record(
             "memories",
             {"type", "content", "source", "importance"},
         ),
-        "registry": (
-            "memory_registry",
-            {"semantic_key", "mem_type", "memory_id", "wiki_scope"},
-        ),
         "conversation": (
             "messages",
             {"role", "content", "session_id"},
@@ -467,14 +432,6 @@ def update_memory_control_record(
             source=str(clean.get("source", current["source"])),
         )
     conn = _get_db()
-    if kind == "registry" and "memory_id" in clean:
-        clean["memory_id"] = int(clean["memory_id"])
-        exists = conn.execute(
-            "SELECT 1 FROM memories WHERE id=?", (clean["memory_id"],)
-        ).fetchone()
-        if not exists:
-            conn.close()
-            raise ValueError("invalid_reference")
     if kind == "conversation" and "role" in clean:
         if clean["role"] not in {"user", "assistant", "system", "tool"}:
             conn.close()
@@ -484,11 +441,6 @@ def update_memory_control_record(
         f"UPDATE {table} SET {assignments} WHERE id=?",
         [*clean.values(), record_id],
     ).rowcount
-    if kind == "registry" and affected:
-        conn.execute(
-            "UPDATE memory_registry SET updated_at=? WHERE id=?",
-            (time.time(), record_id),
-        )
     conn.commit()
     conn.close()
     return affected > 0
@@ -497,7 +449,6 @@ def update_memory_control_record(
 def preview_memory_dependencies(kind: str, record_id: int) -> dict:
     table = {
         "memory": "memories",
-        "registry": "memory_registry",
         "conversation": "messages",
     }.get(kind)
     if not table:
@@ -506,44 +457,23 @@ def preview_memory_dependencies(kind: str, record_id: int) -> dict:
     row = conn.execute(
         f"SELECT * FROM {table} WHERE id=?", (record_id,)
     ).fetchone()
-    if not row:
-        conn.close()
-        raise LookupError("not_found")
-    registry_rows = []
-    memory_row = None
-    if kind == "memory":
-        registry_rows = conn.execute(
-            "SELECT * FROM memory_registry WHERE memory_id=?", (record_id,)
-        ).fetchall()
-    elif kind == "registry":
-        memory_row = conn.execute(
-            "SELECT * FROM memories WHERE id=?", (row["memory_id"],)
-        ).fetchone()
     conn.close()
-    records = [dict(row)]
-    if memory_row:
-        records.append(dict(memory_row))
-    records.extend(dict(item) for item in registry_rows)
+    if not row:
+        raise LookupError("not_found")
     return {
         "will_delete": {
-            "records": records,
-            "registry_ids": [item["id"] for item in registry_rows],
+            "records": [dict(row)],
             "wiki_paths": [],
         },
-        "will_update": (
-            ["memory_fts"] if kind in {"memory", "registry"} else []
-        ),
+        "will_update": ["memory_fts"] if kind == "memory" else [],
         "related_only": [],
     }
 
 
 def delete_memory_control_record(kind: str, record_id: int) -> bool:
-    preview = preview_memory_dependencies(kind, record_id)
+    preview_memory_dependencies(kind, record_id)  # kiểm tra loại hợp lệ và bản ghi tồn tại
     if kind == "memory":
         return delete_memory(record_id)
-    if kind == "registry":
-        registry = preview["will_delete"]["records"][0]
-        return delete_memory(int(registry["memory_id"]))
     if kind == "conversation":
         conn = _get_db()
         affected = conn.execute(

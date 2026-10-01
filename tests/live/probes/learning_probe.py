@@ -1,114 +1,96 @@
-"""Live probe: Đo learning tự phản tư (propose + critique) trên 20 hội thoại mẫu.
-Yêu cầu spec 2026-09-25 §4:
-- 10 hội thoại NÊN học: đạt >= 7/10
-- 10 hội thoại KHÔNG NÊN học: 0/10 lưu nhầm (100% sạch)
-Run: python -X utf8 tests/live/probes/learning_probe.py
-Requires: llama-server 127.0.0.1:8080 (read-only / test engine).
+"""Live probe (Gemma 4 thật trên 127.0.0.1:8080; DB, wiki và lịch sử đều là bản TẠM, không đụng dữ liệu thật):
+learning có học đúng điều nên học và KHÔNG học điều không nên?
+
+Mỗi tình huống chạy engine.process_conversation_learning với lịch sử giả; DB tạm đã có sẵn 2 bài học không liên quan
+(để kiểm tra không còn bị chặn vì "trùng" như id=162). Đạt khi: nhóm NÊN học >= 70%, nhóm KHÔNG nên học = 0 mục lưu.
+Run: PYTHONIOENCODING=utf-8 python tests/live/probes/learning_probe.py
 """
 import asyncio
-import json
+import sqlite3
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 from dotenv import load_dotenv
+
 load_dotenv(ROOT / ".env")
 
-from engine.core.learning import LearningEngine
-
-SHOULD_LEARN_CASES = [
-    ("từ giờ gọi tôi là Erik nhé", "Vâng thưa ngài, tôi sẽ gọi ngài là Erik."),
-    ("tôi không thích bạn xưng em, hãy xưng tôi", "Dạ tôi đã hiểu, tôi sẽ xưng tôi với ngài."),
-    ("dự án của tôi viết bằng Python 3.13 và FastAPI", "Tôi đã ghi nhận thông tin dự án của ngài."),
-    ("khi tóm tắt tin tức nhớ chừa nguồn lại giúp tôi", "Vâng, tôi sẽ luôn trích dẫn nguồn khi tóm tắt tin tức."),
-    ("tôi làm việc ở múi giờ GMT+7 TP.HCM", "Tôi đã ghi nhận múi giờ làm việc của ngài."),
-    ("trả lời ngắn gọn thôi, đừng dài dòng giải thích nhiều", "Vâng thưa ngài, tôi sẽ trả lời cô đọng và đi thẳng vào vấn đề."),
-    ("tôi hay nghe nhạc lofi lúc làm việc", "Tôi đã ghi nhớ sở thích nghe nhạc lofi của ngài."),
-    ("tôi là kỹ sư AI làm việc ở Jarvis", "Rất vinh hạnh được hỗ trợ kỹ sư AI của dự án."),
-    ("sau này bạn thêm emoji vào câu trả lời cho sinh động nhé", "Dạ vâng, tôi sẽ thêm emoji phù hợp vào câu trả lời."),
-    ("nhớ rằng tôi bị dị ứng hải sản", "Tôi đã ghi nhận thông tin ngài bị dị ứng hải sản."),
+SHOULD = [  # (id, lịch sử trước đó, câu của ngài) — phải lưu ít nhất 1 mục
+    ("explicit-limit", [("user", "mở task manager"), ("assistant", "Đã mở Task Manager. Ngài có muốn tôi kiểm tra lịch hẹn không?")],
+     "lại gợi ý nữa, hãy hạn chế gợi ý và ghi nhớ giúp tôi nhé"),
+    ("explicit-short", [("assistant", "Dạ, tôi sẽ trả lời chi tiết từng bước ạ, thưa ngài. Bước một là…")],
+     "từ giờ trả lời ngắn gọn thôi, đừng giải thích dài dòng nữa"),
+    ("fact-job", [], "tôi là lập trình viên, đang làm dự án trợ lý ảo chạy bằng Gemma 4 trên llama.cpp"),
+    ("fact-pc", [], "máy tôi dùng card đồ hoạ RTX 4070, chạy Windows 11"),
+    ("pref-food", [], "tôi thích ăn phở bò tái, hay ăn sáng ở quán gần nhà"),
+    ("complain-style", [("assistant", "Ôi trời ơi, tôi xin lỗi ngài rất nhiều! Tôi hứa sẽ không bao giờ tái phạm nữa đâu ạ!")],
+     "đừng xin lỗi dài dòng như vậy, một câu thôi là đủ rồi"),
+    ("praise", [("assistant", "Giá vàng SJC hôm nay là 80 triệu, nguồn ghi rõ thời điểm cập nhật."), ],
+     "đúng rồi, trả lời có nêu nguồn và thời điểm như vậy là chuẩn, cứ giữ nhé"),
 ]
-
-SHOULD_NOT_LEARN_CASES = [
-    ("tôi lười mở notepad quá", "Ngài có muốn tôi mở Notepad giúp ngài không?"),
-    ("hôm nay tôi mệt mỏi và buồn ngủ quá", "Ngài nên nghỉ ngơi một chút để hồi phục sức khỏe nhé."),
-    ("giá vàng SJC hôm nay là 85 triệu đồng một lượng", "Dạ vâng, đó là giá cập nhật từ thị trường hôm nay."),
-    ("thời tiết Hà Nội đang mưa 25 độ C", "Ngài nhớ mang theo ô khi ra ngoài nhé."),
-    ("chào bạn, buổi sáng tốt lành", "Chào ngài! Chúc ngài một ngày làm việc hiệu quả."),
-    ("cảm ơn bạn nhiều nhé, tạm biệt", "Không có chi thưa ngài, hẹn gặp lại ngài."),
-    ("mở giúp tôi ứng dụng calculator", "Tôi đang mở máy tính cho ngài."),
-    ("kiểm tra email xem có thư mới không", "Hộp thư của ngài hiện không có email mới."),
-    ("bây giờ là mấy giờ rồi nhỉ", "Bây giờ là 14:00 thưa ngài."),
-    ("đang bận tay một chút, lát nữa nói tiếp nhé", "Vâng thưa ngài, tôi luôn ở đây khi ngài cần."),
+SHOULD_NOT = [  # phải lưu 0 mục
+    ("mood-tired", [], "Jarvis ơi, tôi mệt lắm đó"),
+    ("mood-lazy", [], "tôi lười mở notepad quá"),
+    ("greet", [], "xin chào jarvis"),
+    ("thanks", [("assistant", "Đã mở Task Manager.")], "cảm ơn nhé"),
+    ("weather-q", [], "hôm nay thời tiết thế nào nhỉ"),
+    ("one-shot-cmd", [], "mở task manager giúp tôi"),
 ]
+SEED = [("lesson", "Khi người dùng nghi ngờ một sự thật, hãy xác nhận nhẹ nhàng trước khi khẳng định lại.", "doubt_check"),
+        ("user_fact", "Người dùng uống cà phê sữa vào buổi sáng.", "morning_coffee")]
 
 
-async def run_probe():
-    engine = LearningEngine()
-    print("=" * 60)
-    print("BẮT ĐẦU CHẠY LEARNING PROBE (20 ca thử nghiệm)")
-    print("=" * 60)
+async def run_case(engine, memory_mod, history, text):
+    before = engine.list_learning_records(limit=200)["total"]
+    turns = [{"role": r, "content": c} for r, c in history] + [{"role": "user", "content": text}]
+    memory_mod.get_messages = lambda limit=100, session_id="": turns
+    res = await engine.process_conversation_learning(text, "Dạ, tôi hiểu rồi ạ.")
+    after = engine.list_learning_records(limit=200)["total"]
+    return res, after - before
 
-    # Dọn sạch các dữ liệu test mẫu trước khi đo để kiểm tra khả năng học mới
-    conn = engine._get_learning_db()
-    test_keywords = ["Erik", "xưng", "FastAPI", "tin tức", "múi giờ", "ngắn gọn", "lofi", "kỹ sư AI", "emoji", "hải sản"]
-    for kw in test_keywords:
-        conn.execute("DELETE FROM learnings WHERE content LIKE ?", (f"%{kw}%",))
-    conn.commit()
-    conn.close()
 
-    # 1. Đo SHOULD_LEARN
-    should_learn_score = 0
-    print("\n--- 1. Kiểm tra 10 ca NÊN học (Mục tiêu >= 7/10) ---")
-    for i, (u, a) in enumerate(SHOULD_LEARN_CASES, 1):
-        res = await engine.process_conversation_learning(u, a)
-        items = res.get("items", [])
-        stored = res.get("stored", 0)
-        has_learned = len(items) > 0 or stored > 0
-        if has_learned:
-            should_learn_score += 1
-            learned_repr = items[0].get("content") if items else "stored"
-            print(f"[{i:02d}] PASS: '{u}' -> Đã học: '{learned_repr}'")
-        else:
-            print(f"[{i:02d}] MISS: '{u}' -> Bỏ qua (không học)")
-
-    # 2. Đo SHOULD_NOT_LEARN
-    should_not_learn_clean = 0
-    print("\n--- 2. Kiểm tra 10 ca KHÔNG NÊN học (Mục tiêu 0/10 lưu nhầm, 100% sạch) ---")
-    for i, (u, a) in enumerate(SHOULD_NOT_LEARN_CASES, 1):
-        res = await engine.process_conversation_learning(u, a)
-        items = res.get("items", [])
-        stored = res.get("stored", 0)
-        has_learned = len(items) > 0 or stored > 0
-        if not has_learned:
-            should_not_learn_clean += 1
-            print(f"[{i:02d}] PASS (SẠCH): '{u}' -> Đúng đắn bỏ qua")
-        else:
-            learned_repr = items[0].get("content") if items else "stored"
-            print(f"[{i:02d}] FAIL (LƯU NHẦM): '{u}' -> Lưu nhầm: '{learned_repr}'")
-
-    print("\n" + "=" * 60)
-    print(f"KẾT QUẢ LEARNING PROBE:")
-    print(f"- Nên học: {should_learn_score}/10 (Yêu cầu >= 7/10)")
-    print(f"- Không nên học (sạch): {should_not_learn_clean}/10 (Yêu cầu 10/10, tức 0/10 lưu nhầm)")
-    print("=" * 60)
-
-    # Dọn dẹp sau khi đo xong
-    conn = engine._get_learning_db()
-    for kw in test_keywords:
-        conn.execute("DELETE FROM learnings WHERE content LIKE ?", (f"%{kw}%",))
-    conn.commit()
-    conn.close()
-
-    passed = should_learn_score >= 7 and should_not_learn_clean == 10
-    if passed:
-        print("ĐÁNH GIÁ: ĐẠT YÊU CẦU SPEC.")
-    else:
-        print("ĐÁNH GIÁ: CHƯA ĐẠT.")
-    return passed
+async def main() -> int:
+    import engine.core.learning as learning
+    import engine.core.memory as memory
+    tmp = Path(tempfile.mkdtemp())
+    learning.MEMORY_DB_PATH = tmp / "jarvis.db"
+    learning.PREFERENCES_WIKI_PATH = tmp / "Preferences.md"
+    learning.LESSONS_WIKI_PATH = tmp / "Learning.md"
+    learning.LEARNING_HUB_WIKI_PATH = tmp / "hub.md"
+    memory.DB_PATH = tmp / "jarvis.db"
+    memory.init_db()
+    from engine.server.llm_server import call_llm  # noqa: F401  (kiểm tra server có sống)
+    engine = learning.LearningEngine()
+    engine._init_db() if hasattr(engine, "_init_db") else None
+    for kind, content, key in SEED:
+        engine._store_learning(content, "behaviour_lesson" if kind == "lesson" else kind, key)
+    real_get = memory.get_messages
+    ok_should = bad_not = 0
+    try:
+        print("--- NÊN học:")
+        for cid, hist, text in SHOULD:
+            res, delta = await run_case(engine, memory, hist, text)
+            learned = res.get("stored", 0) > 0 or delta > 0
+            ok_should += learned
+            kinds = [f"{p.get('kind')}:{p.get('content', '')[:48]}" for p in res.get("items", [])]
+            print(f"  {'OK  ' if learned else 'MISS'} {cid:15} {kinds}")
+        print("--- KHÔNG nên học:")
+        for cid, hist, text in SHOULD_NOT:
+            res, delta = await run_case(engine, memory, hist, text)
+            learned = res.get("stored", 0) > 0 or delta > 0
+            bad_not += learned
+            kinds = [f"{p.get('kind')}:{p.get('content', '')[:48]}" for p in res.get("items", [])]
+            print(f"  {'SAI ' if learned else 'OK  '} {cid:15} {kinds}")
+    finally:
+        memory.get_messages = real_get
+    need = int(len(SHOULD) * 0.7 + 0.999)
+    print(f"\nNÊN học: {ok_should}/{len(SHOULD)} (cần ≥ {need}) | KHÔNG nên học mà vẫn lưu: {bad_not}/{len(SHOULD_NOT)} (cần 0)")
+    passed = ok_should >= need and bad_not == 0
+    print("PASS" if passed else "FAIL")
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":
-    success = asyncio.run(run_probe())
-    sys.exit(0 if success else 1)
+    sys.exit(asyncio.run(main()))

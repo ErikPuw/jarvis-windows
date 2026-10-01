@@ -25,17 +25,28 @@ def test_offer_protocol_has_format_and_tool_whitelist():
     p = _block("offer_protocol")
     assert tool_list_text() in p
     # User 2026-09-25: thẻ chỉ bọc phần việc bên trong câu hỏi, không bọc cả câu
-    assert "Ngài có muốn tôi <ask_user>[việc + đối tượng]</ask_user> không?<action_run>[tên công cụ]</action_run>" in p
-    assert "MỘT lần" in p  # câu hỏi xin phép không lặp
+    assert "Ngài có muốn tôi <ask_user>[việc]</ask_user> không?<action_run>[tên công cụ]</action_run>" in p
 
 
 def test_offer_protocol_keeps_original_app_names():
     p = _block("offer_protocol")
-    assert "tên gốc" in p and "Không dịch" in p and "ngoặc" in p
+    assert "tên gốc" in p and "không dịch" in p and "ngoặc" in p
 
 
-def test_offer_protocol_offers_the_same_task_when_user_is_lazy():
-    assert "đề nghị làm chính việc đó thay ngài" in _block("offer_protocol")
+def test_offer_protocol_defaults_to_no_offer_and_names_when_to_offer():
+    """Đo 2026-10-01 (suggestion_probe, Gemma 4): 'mặc định chỉ trả lời' đặt TRƯỚC + tiêu chí cụ thể
+    'đúng MỘT công cụ làm được ngay, ngài chưa tự làm' giảm thẻ sai 22% → 3% mà vẫn đề nghị đúng 76%."""
+    p = _block("offer_protocol")
+    assert p.splitlines()[0].startswith("Mặc định chỉ trả lời bằng lời")
+    assert "đúng MỘT công cụ" in p and "ngài chưa tự làm" in p
+    for quiet in ("trò chuyện", "cảm xúc", "phàn nàn", "tự làm"):
+        assert quiet in p.split("Không dùng thẻ", 1)[1]
+
+
+def test_offer_protocol_stays_short():
+    """Giao thức dài làm model đề nghị ở mọi lượt (2026-09-27, 2026-10-01): phần chữ ngoài danh sách công cụ ≤ 1000 ký tự."""
+    p = _block("offer_protocol")
+    assert len(p.replace(tool_list_text(), "")) <= 1000, len(p)
 
 
 def test_soul_rules_do_not_push_offers_and_name_only_real_blocks():

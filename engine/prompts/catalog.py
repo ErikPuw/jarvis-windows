@@ -3,7 +3,6 @@ from pathlib import Path
 from engine.orchestrator.registry import AGENT_REGISTRY
 
 _PROMPT_DIR = Path(__file__).resolve().parents[2] / "prompt"
-_TOOLS_MD_PATH = _PROMPT_DIR / "tools.md"
 _AGENTS_MD_PATH = _PROMPT_DIR / "agents.md"
 
 _AGENTS_CACHE: dict[str, dict] | None = None
@@ -11,75 +10,80 @@ _SYSTEM_TOOLS_CACHE: set[str] | None = None
 _ALIAS_MAP_CACHE: dict[str, str] | None = None
 
 
+_SKILLS_AGENTS_DIR = Path(__file__).resolve().parents[2] / "skills" / "agents"
+
+
+def _parse_skill_md(file_path: Path) -> dict:
+    """Parse YAML frontmatter từ file skill.md."""
+    try:
+        import yaml
+        text = file_path.read_text(encoding="utf-8")
+        if not text.startswith("---"):
+            return {}
+        parts = text.split("---", 2)
+        if len(parts) < 3:
+            return {}
+        return yaml.safe_load(parts[1]) or {}
+    except Exception:
+        return {}
+
+
+def _load_from_skills_dir() -> tuple[dict[str, dict], dict[str, str]] | None:
+    """Quét động thư mục skills/agents/*/skill.md nếu tồn tại."""
+    if not _SKILLS_AGENTS_DIR.is_dir():
+        return None
+
+    agent_dirs = [d for d in _SKILLS_AGENTS_DIR.iterdir() if d.is_dir() and (d / "skill.md").is_file()]
+    if not agent_dirs:
+        return None
+
+    agents: dict[str, dict] = {}
+    alias_map: dict[str, str] = {}
+
+    for adir in sorted(agent_dirs):
+        meta = _parse_skill_md(adir / "skill.md")
+        if not meta or "name" not in meta:
+            continue
+
+        sec_name = meta["name"].strip().lower()
+        aliases = [str(a).strip().lstrip("@").lower() for a in meta.get("aliases", []) if a]
+        tools = []
+        for t in meta.get("tools", []):
+            if isinstance(t, dict) and "name" in t:
+                tools.append({
+                    "name": t["name"],
+                    "label": t.get("label", ""),
+                    "offer": bool(t.get("offer", False)),
+                })
+
+        agents[sec_name] = {
+            "aliases": aliases,
+            "description": meta.get("description", ""),
+            "tools": tools,
+        }
+
+        alias_map[sec_name] = sec_name
+        alias_map[f"agent_{sec_name}"] = sec_name
+        for a in aliases:
+            alias_map[a] = sec_name
+
+    return (agents, alias_map) if agents else None
+
+
 def _load_tools_md():
     global _AGENTS_CACHE, _SYSTEM_TOOLS_CACHE, _ALIAS_MAP_CACHE
     if _AGENTS_CACHE is not None:
         return
 
-    content = _TOOLS_MD_PATH.read_text(encoding="utf-8")
-    agents: dict[str, dict] = {}
-    system_tools: set[str] = set()
-    alias_map: dict[str, str] = {}
+    skills_data = _load_from_skills_dir()
+    if skills_data is not None:
+        _AGENTS_CACHE, _ALIAS_MAP_CACHE = skills_data
+        _SYSTEM_TOOLS_CACHE = {"install_extension", "mcp_call"}
+        return
 
-    current_section = None
-    current_data = None
-
-    for line in content.splitlines():
-        line_s = line.strip()
-        if not line_s:
-            continue
-
-        if line_s.startswith("## @"):
-            sec_name = line_s[4:].strip().lower()
-            current_section = sec_name
-            if sec_name != "system":
-                current_data = {
-                    "aliases": [],
-                    "description": "",
-                    "tools": [],
-                }
-                agents[sec_name] = current_data
-                alias_map[sec_name] = sec_name
-                # Tự động hỗ trợ tiền tố agent_
-                alias_map[f"agent_{sec_name}"] = sec_name
-            else:
-                current_data = None
-            continue
-
-        if current_section == "system":
-            if line_s.startswith("- "):
-                parts = [p.strip() for p in line_s[2:].split("|")]
-                tool_name = parts[0]
-                system_tools.add(tool_name)
-            continue
-
-        if current_data is not None:
-            if line_s.lower().startswith("alias:"):
-                raw_aliases = line_s.split(":", 1)[1]
-                for a in raw_aliases.split(","):
-                    a_clean = a.strip().lstrip("@").lower()
-                    if a_clean:
-                        current_data["aliases"].append(a_clean)
-                        alias_map[a_clean] = current_section
-            elif line_s.startswith("- "):
-                parts = [p.strip() for p in line_s[2:].split("|")]
-                tool_name = parts[0]
-                label = parts[1] if len(parts) > 1 else ""
-                offer = parts[2].lower() == "offer" if len(parts) > 2 else False
-                current_data["tools"].append({
-                    "name": tool_name,
-                    "label": label,
-                    "offer": offer,
-                })
-            else:
-                if not current_data["description"]:
-                    current_data["description"] = line_s
-                else:
-                    current_data["description"] += " " + line_s
-
-    _AGENTS_CACHE = agents
-    _SYSTEM_TOOLS_CACHE = system_tools
-    _ALIAS_MAP_CACHE = alias_map
+    _AGENTS_CACHE = {}
+    _SYSTEM_TOOLS_CACHE = {"install_extension", "mcp_call"}
+    _ALIAS_MAP_CACHE = {}
 
 
 def agents() -> dict[str, dict]:
