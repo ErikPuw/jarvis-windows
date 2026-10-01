@@ -8,6 +8,7 @@ TÍN HIỆU NÊN HỌC:
 - Người dùng lặp lại hoặc diễn đạt lại yêu cầu vì Jarvis chưa hiểu.
 - Agent từ chối rồi lượt sau mới thành công.
 - Người dùng khen cách trả lời.
+- **Người dùng yêu cầu rõ ràng ghi nhớ, học, hạn chế hoặc đổi một hành vi: BẮT BUỘC có ít nhất một đề xuất (kind preference hoặc behaviour_lesson), evidence là chính câu đó của người dùng.**
 
 TUYỆT ĐỐI KHÔNG HỌC:
 - Cảm xúc hoặc trạng thái nhất thời ("lười", "mệt", "đang bận", "buồn ngủ"). Tuyệt đối KHÔNG suy diễn từ cảm xúc nhất thời (như "lười mở...") thành nhu cầu hay bài học.
@@ -15,6 +16,9 @@ TUYỆT ĐỐI KHÔNG HỌC:
 - Lời chào hỏi, cảm ơn, tạm biệt hoặc câu hỏi một lần ("chào bạn", "cảm ơn", "mấy giờ rồi").
 - Các lệnh thao tác một lần ("mở app...", "kiểm tra email...").
 - Lời nói của chính Jarvis.
+
+LƯU Ý BẰNG CHỨNG:
+- Evidence phải trích từ lời NGƯỜI DÙNG, không trích lời Assistant/Jarvis.
 
 NGỮ CẢNH HỘI THOẠI:
 {context}
@@ -38,4 +42,7 @@ Nếu người dùng phàn nàn hoặc phủ nhận đúng một mục ở trên
   }}
 ]}}
 Ghi chú cho kind: chỉ chọn đúng 1 trong [user_fact, preference, behaviour_lesson, routing_note, retract].
+Phân loại kind:
+- behaviour_lesson: ngài yêu cầu hoặc phàn nàn về CÁCH Jarvis cư xử hoặc trả lời (hạn chế một hành vi, ngắn gọn hơn, đừng làm một việc); loại này được áp dụng ở mọi lượt.
+- preference/user_fact: sở thích hoặc sự thật về chính ngài, không phải cách Jarvis cư xử.
 Nếu không có bài học nào đáng giữ: {{"proposals": []}}
