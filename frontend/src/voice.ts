@@ -241,6 +241,8 @@ export interface AudioPlayer {
   enqueueRaw(buffer: ArrayBuffer): Promise<void>;
   /** VieNeu: PCM16 mono đến từng đoạn nhỏ, phát liền mạch (edge dùng enqueue/enqueueRaw). */
   enqueuePcm(base64: string, sampleRate: number, gapMs: number): void;
+  /** Call from a user gesture: lets the browser start audio later. The context idles suspended until something plays. */
+  unlock(): Promise<void>;
   stop(): void;
   getAnalyser(): AnalyserNode;
   isPlaying(): boolean;
@@ -271,11 +273,26 @@ export function createAudioPlayer(): AudioPlayer {
   let finishedCallback: (() => void) | null = null;
   let startedCallback: (() => void) | null = null;
 
+  // A running AudioContext keeps the OS audio thread awake even when nothing plays (power and heat on a phone).
+  // Suspend it a moment after the last sound; the next enqueue resumes it.
+  let idleTimer = 0;
+  const IDLE_SUSPEND_MS = 2500;
+  function suspendSoon() {
+    clearTimeout(idleTimer);
+    idleTimer = window.setTimeout(() => {
+      if (!isPlaying && queue.length === 0 && pcmSources.size === 0 && !isProcessing && audioCtx.state === "running") void audioCtx.suspend();
+    }, IDLE_SUSPEND_MS);
+  }
+  function finished() {
+    finishedCallback?.();
+    suspendSoon();
+  }
+
   function playNext() {
     if (queue.length === 0) {
       isPlaying = false;
       currentSource = null;
-      finishedCallback?.();
+      finished();
       return;
     }
 
@@ -301,6 +318,7 @@ export function createAudioPlayer(): AudioPlayer {
 
   return {
     async enqueue(base64: string) {
+      clearTimeout(idleTimer);
       const generation = playbackGeneration;
       isProcessing = true;
       // Resume audio context (browser autoplay policy)
@@ -328,6 +346,7 @@ export function createAudioPlayer(): AudioPlayer {
     },
 
     async enqueueRaw(buffer: ArrayBuffer) {
+      clearTimeout(idleTimer);
       const generation = playbackGeneration;
       isProcessing = true;
       if (audioCtx.state === "suspended") {
@@ -347,6 +366,7 @@ export function createAudioPlayer(): AudioPlayer {
     },
 
     enqueuePcm(base64: string, sampleRate: number, gapMs: number) {
+      clearTimeout(idleTimer);
       if (audioCtx.state === "suspended") void audioCtx.resume();
       const binary = atob(base64);
       const samples = binary.length >> 1;
@@ -377,7 +397,7 @@ export function createAudioPlayer(): AudioPlayer {
         pcmSources.delete(source);
         if (pcmSources.size === 0 && queue.length === 0) {
           isPlaying = false;
-          finishedCallback?.();
+          finished();
         }
       };
       source.start(startAt);
@@ -406,7 +426,12 @@ export function createAudioPlayer(): AudioPlayer {
       }
       isPlaying = false;
       isProcessing = false;
-      finishedCallback?.();
+      finished();
+    },
+
+    async unlock() {
+      if (audioCtx.state === "suspended") await audioCtx.resume();
+      suspendSoon();
     },
 
     getAnalyser() {

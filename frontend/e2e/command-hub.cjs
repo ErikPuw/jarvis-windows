@@ -42,6 +42,7 @@ async function open(browser, opts = {}) {
   await page.waitForTimeout(250);
   const [lo, lt] = await page.evaluate(() => [document.getElementById("status-orb").dataset.orb, document.getElementById("status-text").textContent]);
   check(lo === "listening" && lt === "Đang nghe…", '2. mở mic → orb listening, nhãn "Đang nghe…"', `${lo} / ${lt}`);
+  await page.waitForTimeout(2000); // hẹn giờ khởi động của trang (chuyển sang listening) có thể chạy muộn và ghi đè trạng thái
   const cases = [["thinking", "connecting", "Đang nghĩ…"], ["working", "solving", "Đang làm việc…"], ["speaking", "composing", "Đang trả lời…"]];
   for (const [jarvis, orbState, label] of cases) {
     const [o, t] = await st(jarvis);
@@ -96,16 +97,19 @@ async function open(browser, opts = {}) {
   await page.evaluate(() => document.getElementById("command-container").classList.add("visible"));
   await page.waitForTimeout(500);
 
-  // 3. beam trên thanh lệnh
+  // 3. viền sáng của thanh lệnh chỉ có MỘT hiệu ứng: aura (canvas, src/edge-aura.ts). Beam CSS cũ đã bỏ, không chồng lên nhau.
+  const auraSum = () => page.$eval("#command-bar-inner .cmd-aura-canvas", (c) => { const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let a = 0; for (let i = 3; i < d.length; i += 4) a += d[i]; return a; });
+  const two = await page.evaluate(() => ({ beam: !!document.querySelector(".cmd-beam"), aura: document.querySelectorAll("#command-bar-inner .cmd-aura-canvas").length, beamCss: [...document.styleSheets].some((sh) => { try { return [...sh.cssRules].some((r) => /cmd-beam|beam-a/.test(r.cssText)); } catch { return false; } }) }));
+  check(!two.beam && two.aura === 1 && !two.beamCss, "3a. chỉ còn aura (1 canvas), không còn beam CSS chồng lên", JSON.stringify(two));
   await st("thinking");
-  const beam = await page.$eval("#command-bar-inner .cmd-beam", (e) => { const cs = getComputedStyle(e); return { anim: cs.animationName, op: parseFloat(cs.opacity) }; }).catch(() => null);
-  check(beam && beam.anim !== "none" && beam.op >= 0.8, "3a. nghĩ → beam chạy rõ", JSON.stringify(beam));
+  await page.waitForTimeout(900); // aura làm sáng dần (nội suy)
+  const bright = await auraSum();
   await st("idle"); // still muted, so idle stays idle
-  await page.waitForTimeout(700); // opacity transition (0.5s)
-  const faint = await page.$eval("#command-bar-inner .cmd-beam", (e) => parseFloat(getComputedStyle(e).opacity)).catch(() => 1);
-  check(faint > 0 && faint <= 0.4, "3b. rảnh → beam mờ", String(faint));
+  await page.waitForTimeout(1500);
+  const faint = await auraSum();
+  check(faint > 0 && bright > faint * 1.25, "3b. nghĩ → aura sáng hơn rảnh (và rảnh vẫn còn mờ)", `rảnh=${faint} nghĩ=${bright}`);
 
-  // 3c. viền thanh lệnh vẫn còn rõ (vệt beam chạy đè lên viền, không thay viền)
+  // 3c. viền thanh lệnh vẫn còn rõ (aura chạy đè lên viền, không thay viền)
   const border = await page.evaluate(() => {
     const cs = getComputedStyle(document.getElementById("command-bar-inner"));
     return { w: cs.borderTopWidth, a: (cs.borderTopColor.match(/rgba?\(([^)]+)\)/)?.[1].split(",").map(Number)[3]) ?? 1 };
@@ -113,17 +117,9 @@ async function open(browser, opts = {}) {
   check(border.w === "1px" && border.a >= 0.2, "3c. viền thanh lệnh vẫn còn rõ", JSON.stringify(border));
 
   // 4. nút mới
-  await page.evaluate(() => { const i = document.getElementById("command-input"); i.value = ""; });
-  await page.click("#btn-slash");
-  const v1 = await page.$eval("#command-input", (i) => [i.value, document.activeElement === i]);
-  check(v1[0] === "/" && v1[1], "4a. nút / chèn '/' và focus", JSON.stringify(v1));
-  await page.evaluate(() => { document.getElementById("command-input").value = ""; });
-  await page.click("#btn-mention");
-  const v2 = await page.$eval("#command-input", (i) => i.value);
-  check(v2 === "@", "4b. nút @ chèn '@'", v2);
+  check(!(await page.$("#btn-slash")) && !(await page.$("#btn-mention")), "4a. đã bỏ nút / và @ (gõ thẳng vào ô lệnh)");
   check(!(await page.$("#btn-cmd-mic")), "4c. đã bỏ nút mic trong thanh lệnh (mic đã ở hàng nút trên cùng, gần nút gửi)");
-  check(!!(await page.$("#btn-slash morph-icon")) && !!(await page.$("#btn-mention morph-icon")), "4d. nút / và @ dùng morphicons");
-  check(!!(await page.$("#jarvis-mascot")), "4e. vẫn còn mascot");
+  check(!!(await page.$("#jarvis-bot canvas")) && !(await page.$("#jarvis-mascot")), "4e. bot linh vật thay mascot cáo");
 
   // 5. nút gửi: viền kim loại tròn, icon nằm giữa
   const ring = await page.evaluate(() => {
@@ -143,10 +139,11 @@ async function open(browser, opts = {}) {
   }
   await page.click("#btn-mute"); // trả lại
 
-  // 6. giảm chuyển động → beam và orb đứng yên
+  // 6. giảm chuyển động → aura và orb đứng yên
   const rm = await open(browser, { reducedMotion: "reduce" });
-  const rmBeam = await rm.page.$eval("#command-bar-inner .cmd-beam", (e) => getComputedStyle(e).animationName).catch(() => "");
-  check(rmBeam === "none", "6. giảm chuyển động → beam đứng yên", rmBeam);
+  const frame = () => rm.page.$eval("#command-bar-inner .cmd-aura-canvas", (c) => c.toDataURL());
+  const f1 = await frame(); await rm.page.waitForTimeout(600); const f2 = await frame();
+  check(f1 === f2, "6. giảm chuyển động → aura đứng yên (hai khung cách 0,6s giống hệt)");
   rm.send({ type: "status", state: "working" }); await rm.page.waitForTimeout(150);
   check((await rm.page.$eval("#status-orb", (e) => e.dataset.morph || "")) === "", "6b. giảm chuyển động → orb đổi trạng thái tức thì, không biến hình");
   await rm.page.close();
@@ -156,7 +153,11 @@ async function open(browser, opts = {}) {
   const m = await open(browser, { viewport: { width: 375, height: 812 } });
   const over = await m.page.evaluate(() => {
     const bar = document.getElementById("command-bar-inner").getBoundingClientRect();
-    return [...document.querySelectorAll("#command-bar-inner button, #cmd-send-wrap")].filter((b) => b.offsetParent && (b.getBoundingClientRect().right > bar.right + 1 || b.getBoundingClientRect().left < bar.left - 1)).map((b) => b.id);
+    return [...document.querySelectorAll("#command-bar-inner button, #cmd-send-wrap")].filter((b) => {
+      if (!b.offsetParent || b.id === "jarvis-bot") return false; // bot đậu trên mép thanh lệnh có chủ đích
+      const r = b.getBoundingClientRect(), cs = getComputedStyle(b); // vùng chạm 40px có padding+margin âm, chỉ đo phần nhìn thấy
+      return r.right - parseFloat(cs.paddingRight) > bar.right + 1 || r.left + parseFloat(cs.paddingLeft) < bar.left - 1;
+    }).map((b) => b.id);
   });
   check(over.length === 0, "7. mobile: nút nằm gọn trong thanh lệnh", over.join(","));
   await m.page.close();

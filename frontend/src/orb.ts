@@ -2,7 +2,7 @@
  * JARVIS — Hệ thống mô phỏng hạt đa trạng thái (Multi-mode particle visualization).
  * 
  * KIẾN TRÚC CỐT LÕI:
- * - Sử dụng Three.js với BufferGeometry để tối ưu hiệu suất xử lý (N=2000 hạt).
+ * - Sử dụng Three.js với BufferGeometry để tối ưu hiệu suất xử lý (N=1000 hạt).
  * - Vật lý: Hệ thống dựa trên vận tốc (Velocity-based) với lực hướng tâm và chuyển động Brownian.
  * - Logic kết nối: Tạo các đoạn thẳng (lines) động giữa các hạt lân cận.
  * 
@@ -29,7 +29,7 @@ export interface Orb {
 export function createOrb(canvas: HTMLCanvasElement): Orb {
   let destroyed = false;
   let paused = false;
-  const N = 2000;
+  const N = 1000;
   const MAX_RENDER_HEIGHT = 1080;
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, stencil: false, powerPreference: "high-performance", });
@@ -148,13 +148,25 @@ export function createOrb(canvas: HTMLCanvasElement): Orb {
   let freqData = new Uint8Array(64);
   let bass = 0, mid = 0;
 
-  const clock = new THREE.Clock();
+  const startedAt = performance.now(); // THREE.Clock is deprecated; only the elapsed seconds were used
   const idleColor = new THREE.Color();
 
-  function animate() {
+  const C_WORKING = new THREE.Color(0x818cf8), C_WORKING_LINE = new THREE.Color(0xffaa00);
+  const C_THINKING = new THREE.Color(0x6ec4ff), C_SPEAKING = new THREE.Color(0x7ee8a8), C_LISTENING = new THREE.Color(0x4ca8e8);
+
+  // One loop only: pause() cancels the pending frame, otherwise pause()+resume() within a frame left
+  // two loops alive and every overlay open/close added another (the orb then drew 5x per frame).
+  let raf = 0;
+  let lastFrame = 0;
+  const FRAME_MS = 1000 / 60; // a 120 Hz screen no longer draws (and runs the physics) twice as often
+
+  function animate(now = performance.now()) {
+    raf = 0;
     if (destroyed || paused) return;
-    requestAnimationFrame(animate);
-    const t = clock.getElapsedTime();
+    raf = requestAnimationFrame(animate);
+    if (now - lastFrame < FRAME_MS - 2) return;
+    lastFrame = now;
+    const t = (performance.now() - startedAt) / 1000;
 
     switch (state) {
       case "idle":
@@ -306,7 +318,7 @@ export function createOrb(canvas: HTMLCanvasElement): Orb {
         for (let i = 0; i < N && lineCount < MAX_LINES; i += step) {
           const i3 = i * 3;
           const x1 = a[i3], y1 = a[i3 + 1], z1 = a[i3 + 2];
-          let neighbors = [];
+          let nb = 0, n1 = 0, n2 = 0; // first two neighbours (was an array allocated per particle per frame)
           let pConnections = 0;
 
           for (let j = i + step; j < N && lineCount < MAX_LINES; j += step) {
@@ -318,12 +330,12 @@ export function createOrb(canvas: HTMLCanvasElement): Orb {
               la[idx] = x1; la[idx + 1] = y1; la[idx + 2] = z1;
               la[idx + 3] = a[j3]; la[idx + 4] = a[j3 + 1]; la[idx + 5] = a[j3 + 2];
               lineCount++; pConnections++;
-              neighbors.push(j3);
+              if (nb === 0) n1 = j3; else if (nb === 1) n2 = j3;
+              nb++;
             }
           }
 
-          if (neighbors.length >= 2 && triCount < 3) {
-            const n1 = neighbors[0], n2 = neighbors[1];
+          if (nb >= 2 && triCount < 3) {
             const tidx = triCount * 9;
             ta[tidx] = x1; ta[tidx + 1] = y1; ta[tidx + 2] = z1;
             ta[tidx + 3] = a[n1]; ta[tidx + 4] = a[n1 + 1]; ta[tidx + 5] = a[n1 + 2];
@@ -496,15 +508,15 @@ export function createOrb(canvas: HTMLCanvasElement): Orb {
     mat.size = (currentSize + bass * 0.008) * depthScale;
     electronMat.size = ELECTRON_SIZE * depthScale;
 
-    if (state === "working") { mat.color.lerp(new THREE.Color(0x818cf8), 0.015); lineMat.color.lerp(new THREE.Color(0xffaa00), 0.015); }
-    else if (state === "thinking") { mat.color.lerp(new THREE.Color(0x6ec4ff), 0.015); lineMat.color.lerp(new THREE.Color(0x6ec4ff), 0.015); }
-    else if (state === "speaking") { mat.color.lerp(new THREE.Color(0x7ee8a8), 0.015); lineMat.color.lerp(new THREE.Color(0x7ee8a8), 0.015); }
+    if (state === "working") { mat.color.lerp(C_WORKING, 0.015); lineMat.color.lerp(C_WORKING_LINE, 0.015); }
+    else if (state === "thinking") { mat.color.lerp(C_THINKING, 0.015); lineMat.color.lerp(C_THINKING, 0.015); }
+    else if (state === "speaking") { mat.color.lerp(C_SPEAKING, 0.015); lineMat.color.lerp(C_SPEAKING, 0.015); }
     else if (state === "idle") {
       // Mic tắt: xoay nhẹ qua vòng màu, 60s một vòng (listening giữ xanh cố định).
       idleColor.setHSL((t / 60) % 1, 0.55, 0.6);
       mat.color.lerp(idleColor, 0.015); lineMat.color.lerp(idleColor, 0.015);
     }
-    else { mat.color.lerp(new THREE.Color(0x4ca8e8), 0.015); lineMat.color.lerp(new THREE.Color(0x4ca8e8), 0.015); }
+    else { mat.color.lerp(C_LISTENING, 0.015); lineMat.color.lerp(C_LISTENING, 0.015); }
 
     camera.position.x = Math.sin(t * 0.02) * 5;
     camera.position.y = Math.cos(t * 0.03) * 3;
@@ -531,15 +543,19 @@ export function createOrb(canvas: HTMLCanvasElement): Orb {
     },
     pause() {
       paused = true;
+      cancelAnimationFrame(raf);
+      raf = 0;
     },
     resume() {
       if (paused) {
         paused = false;
+        lastFrame = 0;
         animate();
       }
     },
     destroy() {
       destroyed = true;
+      cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
       renderer.dispose();
     },

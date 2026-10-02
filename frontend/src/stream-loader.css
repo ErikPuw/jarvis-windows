@@ -1,0 +1,130 @@
+/* Stream loader shown between `stream_start` and the first text: the Arc Reactor liquid layer (4 blobs round
+   pinned pivots, teal, slow hue shift). The design is unchanged; only the liquid (goo) effect is new, taken from
+   "Loader" by david_7366 on uiverse.io (https://uiverse.io/david_7366/tall-turkey-48, MIT): blur + alpha threshold
+   (feGaussianBlur + feColorMatrix "22 -9") on the blob layer, with the blur scaled to these small blobs.
+   The filter lives inside the loader's own markup (stream-loader.ts), not in index.html. */
+.chat-bubble.assistant.typing-loader {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 8px 12px;
+  overflow: visible;
+}
+
+.sl-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.stream-bubble-host {
+  position: relative;
+  width: 22px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* the gooey blobs spill outside their bubble (that is the effect). Scaled to 0.72 they stay within the 8px the
+     chat keeps under the last bubble, so the bubble sits where the streamed text will */
+  transform: scale(0.72);
+}
+
+.loader-layer-pin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 38px;
+  height: 38px;
+  margin-top: -5px;
+  margin-left: -5px;
+  pointer-events: none;
+  animation: stream-colorize 6.6s ease-in-out infinite;
+}
+
+.loader-inner-c {
+  position: absolute;
+  inset: -14px;
+  filter: url(#sl-goo);
+  -webkit-filter: url(#sl-goo);
+}
+
+.blob-c {
+  position: absolute;
+  border-radius: 43%;
+  background: linear-gradient(135deg, #00f5d4 20%, #38bdf8 80%);
+  box-shadow: 0 0 10px rgba(0, 245, 212, 0.5);
+}
+
+.bc-1 {
+  width: 16px;
+  height: 16px;
+  top: 11px;
+  left: 11px;
+  transform-origin: 50% 120%;
+  animation: stream-spin 2.2s linear infinite reverse;
+}
+
+.bc-2 {
+  width: 14px;
+  height: 14px;
+  top: 12px;
+  left: 12px;
+  transform-origin: 50% -20%;
+  animation: stream-spin 2.2s linear infinite;
+  animation-delay: -0.73s;
+  background: linear-gradient(135deg, #38bdf8 20%, #00f5d4 80%);
+}
+
+.bc-3 {
+  width: 11px;
+  height: 11px;
+  top: 13.5px;
+  left: 13.5px;
+  transform-origin: -20% 50%;
+  animation: stream-spin 2.2s linear infinite reverse;
+  animation-delay: -1.22s;
+  background: #00f5d4;
+}
+
+.bc-4 {
+  width: 11px;
+  height: 11px;
+  top: 13.5px;
+  left: 13.5px;
+  transform-origin: 120% 50%;
+  animation: stream-spin 2.2s linear infinite;
+  animation-delay: -1.46s;
+  background: #38bdf8;
+}
+
+@keyframes stream-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes stream-colorize {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  25% {
+    filter: hue-rotate(35deg);
+  }
+  50% {
+    filter: hue-rotate(-25deg);
+  }
+  75% {
+    filter: hue-rotate(45deg);
+  }
+  100% {
+    filter: hue-rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bc-1, .bc-2, .bc-3, .bc-4, .loader-layer-pin {
+    animation: none;
+  }
+}

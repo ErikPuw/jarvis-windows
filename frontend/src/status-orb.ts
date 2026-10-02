@@ -2,6 +2,7 @@
 // replaces the bare status text. The orb state follows the JARVIS state through the
 // "jarvis:mascot" event that transition() already fires. A state change morphs: the
 // dots fly from the old shape into the new one instead of the picture being swapped.
+import { gatedLoop } from "./anim-gate";
 import { MODE_FRAMES, paintFrame, finalizeFrame, resolvePreset, type OrbState, type OrbFrame, type Dot } from "thinking-orbs/engine";
 
 // JARVIS state → orb state (+ speed). Idle (mic muted / audio finishing) keeps a
@@ -69,7 +70,6 @@ export function mountStatusOrb(host: HTMLElement): void {
   let cur = MAP.idle;
   let preset = resolvePreset(cur.orb, DRAW_SIZE);
   let t = 1.5;
-  let last = performance.now();
   let from: OrbFrame | null = null; // snapshot of what was on screen when the state changed
   let morphStart = 0;
   let shown: OrbFrame | null = null;
@@ -107,10 +107,5 @@ export function mountStatusOrb(host: HTMLElement): void {
   draw(performance.now());
   if (still) return;
 
-  const loop = (now: number) => {
-    if (!document.hidden) { t += (now - last) / 1000; draw(now); }
-    last = now;
-    requestAnimationFrame(loop);
-  };
-  requestAnimationFrame(loop);
+  gatedLoop((now, dt) => { t += dt / 1000; draw(now); });
 }

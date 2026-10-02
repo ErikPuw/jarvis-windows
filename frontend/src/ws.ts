@@ -13,6 +13,8 @@ export interface JarvisSocket {
   onReconnect(handler: () => void): void;
   close(): void;
   reconnectManual(): void;
+  /** Tries to connect right now (resets the backoff) unless a socket is already open or connecting. */
+  retryNow(): void;
   isConnected(): boolean;
   isSuperseded(): boolean;
   getDeviceType(): 'mobile' | 'desktop';
@@ -207,6 +209,11 @@ export function createSocket(url: string): JarvisSocket {
       clearReconnectTimer();
       stopHeartbeat();
       ws?.close();
+    },
+    retryNow() {
+      if (closed || closedBySupersede || connected || connecting) return;
+      reconnectDelay = 1000;
+      connect();
     },
     reconnectManual() {
       closed = false;

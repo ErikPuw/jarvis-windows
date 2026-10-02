@@ -155,7 +155,8 @@ function formatMarkdown(md: string): string {
       const tr = "<tr>" + cells.map(c => `<${tag}>${c}</${tag}>`).join("") + "</tr>";
       if (!pastSep) thead += tr; else tbody += tr;
     }
-    return `<table class="sd-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+    // the wrapper lets a wide table scroll inside itself instead of widening the whole page (phones)
+    return `<div class="sd-table-wrap"><table class="sd-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
   });
 
   // Horizontal rule

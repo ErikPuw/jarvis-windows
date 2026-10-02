@@ -1894,7 +1894,6 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -2325,7 +2324,7 @@
 #settings-container .gf-hint { margin-left: auto; }
 #settings-container .gf-card { padding: 8px; overflow-x: auto; }
 #settings-container .gf-map { min-width: 900px; }
-#settings-container .gf-svg { display: block; width: 100%; height: auto; user-select: none; touch-action: none; }
+#settings-container .gf-svg { display: block; width: 100%; height: auto; user-select: none; touch-action: pan-x pan-y; }
 #settings-container .gf-grid-dot { fill: rgba(148, 163, 184, 0.12); }
 #settings-container .gf-edge { fill: none; stroke: var(--gf-e); stroke-width: 1.2; opacity: 0.28; }
 #settings-container .gf-edge-llm { opacity: 0.4; }
@@ -2403,4 +2402,41 @@
 
 @media (min-width: 769px) and (max-width: 1100px) {
   #settings-container .span-4 { grid-column: span 6; }
+}
+
+/* Thông tin: một trang liền mạch, không viền thẻ — PC và mobile giống nhau. Nội dung không bao giờ rộng hơn màn hình:
+   bảng cuộn trong khối của nó, khối mã cuộn trong khối mã, chữ dài tự xuống dòng. */
+#settings-container .sd-info-container,
+#settings-container .sd-info-container .sd-readme-card,
+#settings-container .sd-readme-content,
+#settings-container .sd-prose {
+  min-width: 0;
+  max-width: 100%;
+}
+#settings-container .sd-info-container .sd-info-bar,
+#settings-container .sd-info-container .sd-readme-card {
+  border: 0;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+#settings-container .sd-info-container .sd-info-bar { padding: 0 0 4px; }
+#settings-container .sd-info-container .sd-readme-card { padding: 0; }
+#settings-container .sd-prose { overflow-wrap: anywhere; }
+#settings-container .sd-prose img { max-width: 100%; height: auto; }
+#settings-container .sd-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  margin: 14px 0;
+}
+#settings-container .sd-table-wrap > .sd-table {
+  margin: 0;
+  width: 100%; /* fits the screen and wraps its text; only a table with many columns still scrolls inside its wrapper */
+}
+#settings-container .sd-table th,
+#settings-container .sd-table td {
+  min-width: 7em;
+  vertical-align: top;
+  overflow-wrap: anywhere;
 }

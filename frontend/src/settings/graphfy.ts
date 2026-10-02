@@ -184,6 +184,7 @@ function enableInteraction(svg: SVGSVGElement, byId: Map<string, GNode>, viewH: 
     return pt.matrixTransform(svg.getScreenCTM()!.inverse());
   };
   svg.addEventListener("pointerdown", (ev) => {
+    if (ev.pointerType === "touch") return; // a finger pans the (wider than the screen) map; dragging nodes is for mouse/pen
     const el = (ev.target as Element).closest<SVGGElement>(".gf-node");
     if (!el) return;
     const node = byId.get(el.dataset.id!)!;

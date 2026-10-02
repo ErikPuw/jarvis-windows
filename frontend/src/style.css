@@ -138,7 +138,6 @@ body {
   border-radius: 8px;
   padding: 4px;
   z-index: 20;
-  backdrop-filter: blur(12px);
 }
 
 #menu-dropdown button {
@@ -190,8 +189,6 @@ body {
   flex-direction: column;
   padding: 0;
   background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
   border: none;
   box-shadow: none;
   width: 250px;
@@ -228,8 +225,6 @@ body {
 /* Biến mỗi nhóm con thành một ô kính Glassmorphism tĩnh hoàn toàn */
 #status-dashboard .hud-group {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-top: 1px solid rgba(255, 255, 255, 0.18);
   border-left: 1px solid rgba(255, 255, 255, 0.12);
@@ -465,8 +460,6 @@ body {
   gap: 10px;
   padding: 16px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-top: 1px solid rgba(255, 255, 255, 0.18);
   border-left: 1px solid rgba(255, 255, 255, 0.12);
@@ -719,6 +712,14 @@ body {
 #chat-history.at-bottom {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 100%);
   mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 100%);
+}
+
+/* The fade only shows where content reaches the top edge, i.e. once the list overflows (.overflowing, set in
+   main.ts). Before that the mask changes nothing visible but forces the whole list, blurred bubbles
+   included, through an offscreen layer every frame. */
+#chat-history:not(.overflowing) {
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 .chat-bubble {
@@ -1012,8 +1013,6 @@ body {
 
 /* ── Liquid glass bubble effect ── */
 .chat-bubble {
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   overflow: visible;
 }
 
@@ -1275,8 +1274,6 @@ body {
   background: linear-gradient(165deg, rgba(8, 12, 24, 0.94) 0%, rgba(4, 6, 12, 0.92) 100%);
   border: 1px solid rgba(0, 212, 255, 0.2);
   border-radius: 12px;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 212, 255, 0.05);
   overflow: hidden;
   transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1601,7 +1598,7 @@ body {
   }
 
   #command-bar-inner {
-    padding: 8px 4px;
+    padding: 6px 4px;
     border-radius: 12px;
   }
 
@@ -1661,8 +1658,6 @@ body {
   height: 300px;
   background: rgba(10, 10, 15, 0.5);
   border: 1px solid rgba(0, 212, 255, 0.2);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   z-index: 55;
   transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.8s ease;
   /* Không dùng transition: all để tránh giật khi kéo resize */
@@ -1819,11 +1814,9 @@ body {
   top: 380px;
   width: 460px;
   height: 570px;
-  background: rgba(8, 8, 14, 0.65);
+  background: rgba(8, 8, 14, 0.85);
   border: 1px solid rgba(14, 165, 233, 0.12);
   border-radius: 12px;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
   z-index: 55;
   display: flex;
   flex-direction: column;
@@ -1832,10 +1825,18 @@ body {
   overflow: hidden;
 }
 
+/* Hidden = display:none. It used to be opacity:0 + offscreen transform, which left a blurred, composited layer
+   alive and redrawn behind everything (measured ~9% of the paint work). Opening replays the entrance animation. */
 #history-panel.hidden {
-  transform: translateX(-120%);
-  opacity: 0;
-  pointer-events: none;
+  display: none;
+}
+
+#history-panel {
+  animation: panel-in-left 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes panel-in-left {
+  from { opacity: 0; transform: translateX(-40px); }
 }
 
 #history-panel .history-header {
@@ -2107,6 +2108,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  touch-action: pan-y;
   box-shadow: 0 40px 100px rgba(0, 0, 0, 0.7), inset 0 0 40px rgba(14, 165, 233, 0.02);
   transform: scale(0.96);
   transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
@@ -2139,8 +2141,13 @@ body {
 
 .log-content {
   flex: 1;
+  min-width: 0;
   padding: 12px 16px;
+  overflow-x: hidden; /* long lines wrap instead of scrolling sideways (and dragging the frame about on a phone) */
   overflow-y: auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  touch-action: pan-y;
   scrollbar-width: none;
   -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
@@ -2278,8 +2285,6 @@ body {
   border: none;
   background: transparent;
   /* Full transparency for the container */
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
   box-shadow: none;
   transform-origin: bottom left;
   /* 4-side linear fade mask for a cleaner tactical look */
@@ -2326,9 +2331,15 @@ body {
 }
 
 #map-panel.hidden {
-  opacity: 0;
-  pointer-events: none;
-  transform: scale(0.8) translateY(20px);
+  display: none;
+}
+
+#map-panel {
+  animation: panel-in-scale 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes panel-in-scale {
+  from { opacity: 0; transform: scale(0.9) translateY(16px); }
 }
 
 .map-body {
@@ -2366,7 +2377,6 @@ body {
   font-weight: bold;
   cursor: pointer;
   transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2397,7 +2407,6 @@ body {
   border: 1px solid rgba(0, 212, 255, 0.15);
   border-radius: 6px;
   padding: 0 10px;
-  backdrop-filter: blur(15px);
   z-index: 10;
   transition: all 0.3s ease;
 }
@@ -2448,7 +2457,6 @@ body {
   font-size: 9px;
   color: #00d4ff;
   border: 1px solid rgba(0, 212, 255, 0.15);
-  backdrop-filter: blur(10px);
   pointer-events: none;
   z-index: 10;
   display: flex;
@@ -2543,7 +2551,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  backdrop-filter: blur(20px);
   transition: all 0.3s ease;
 }
 
@@ -2671,134 +2678,6 @@ body {
   }
 }
 
-/* --- Hiệu ứng Chờ Typing Animation cho Chat Bubble: Gemini Live Fluid Aurora (Mẫu 29) --- */
-.chat-bubble.assistant.typing-loader {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 48px;
-  min-height: 32px;
-  padding: 8px 14px;
-}
-
-.gemini-mesh-container {
-  position: relative;
-  width: 30px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0 0 3px rgba(56, 189, 248, 0.3));
-}
-
-.gemini-blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(1px);
-  mix-blend-mode: screen;
-  opacity: 1;
-}
-
-.gemini-blob-1 {
-  width: 11px;
-  height: 11px;
-  background: #38bdf8;
-  left: 1px;
-  animation: fluid-blob-1 2.2s ease-in-out infinite alternate;
-}
-
-.gemini-blob-2 {
-  width: 11px;
-  height: 11px;
-  background: #c084fc;
-  right: 1px;
-  animation: fluid-blob-2 2.5s ease-in-out infinite alternate;
-}
-
-.gemini-blob-3 {
-  width: 10px;
-  height: 10px;
-  background: #f43f5e;
-  left: 10px;
-  animation: fluid-blob-3 2s ease-in-out infinite alternate;
-}
-
-@keyframes fluid-blob-1 {
-  0% {
-    transform: translate(0, -2px) scale(0.9);
-  }
-
-  50% {
-    transform: translate(5px, 2px) scale(1.15);
-  }
-
-  100% {
-    transform: translate(1px, -3px) scale(0.95);
-  }
-}
-
-@keyframes fluid-blob-2 {
-  0% {
-    transform: translate(0, 2px) scale(1.1);
-  }
-
-  50% {
-    transform: translate(-5px, -2px) scale(0.85);
-  }
-
-  100% {
-    transform: translate(-1px, 3px) scale(1.05);
-  }
-}
-
-@keyframes fluid-blob-3 {
-  0% {
-    transform: translate(0, 0) scale(1);
-  }
-
-  50% {
-    transform: translate(-3px, 3px) scale(1.2);
-  }
-
-  100% {
-    transform: translate(3px, -2px) scale(0.9);
-  }
-}
-
-/* Fallback typing-dot */
-.typing-dot {
-  width: 6px;
-  height: 6px;
-  background: var(--accent-blue);
-  border-radius: 50%;
-  animation: typing-bounce 1.4s infinite ease-in-out both;
-  box-shadow: 0 0 8px rgba(14, 165, 233, 0.6);
-}
-
-.typing-dot:nth-child(1) {
-  animation-delay: -0.32s;
-}
-
-.typing-dot:nth-child(2) {
-  animation-delay: -0.16s;
-}
-
-@keyframes typing-bounce {
-
-  0%,
-  80%,
-  100% {
-    transform: scale(0.6);
-    opacity: 0.4;
-  }
-
-  40% {
-    transform: scale(1.2);
-    opacity: 1;
-    background: var(--accent-cyan);
-    box-shadow: 0 0 12px var(--accent-cyan);
-  }
-}
 
 /* --- Media Player (Tự động scale theo tỷ lệ phim & responsive) --- */
 .media-player {
@@ -2812,8 +2691,6 @@ body {
   height: auto;
   background: rgba(8, 10, 18, 0.95);
   border: 1px solid rgba(0, 212, 255, 0.35);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   z-index: 100;
   overflow: hidden;
   border-radius: 12px;
@@ -3080,8 +2957,6 @@ body {
   max-height: 220px;
   overflow-y: auto;
   background: rgba(8, 10, 18, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(0, 212, 255, 0.18);
   border-radius: 10px;
   z-index: 50;
@@ -3220,8 +3095,6 @@ body {
   display: flex;
   flex-direction: column;
   background: linear-gradient(135deg, rgba(6, 8, 14, 0.5) 0%, rgba(6, 8, 14, 0.3) 100%);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-top: 1px solid rgba(255, 255, 255, 0.15);
   border-left: 1px solid rgba(255, 255, 255, 0.12);
@@ -3297,8 +3170,6 @@ body {
   left: 50%;
   transform: translateX(-50%);
   background: rgba(10, 10, 15, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(0, 212, 255, 0.25);
   padding: 4px 8px;
   border-radius: 6px;
@@ -3339,7 +3210,6 @@ body {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 15px rgba(0, 212, 255, 0.1) !important;
   border-radius: 10px !important;
   padding: 14px 18px !important;
-  backdrop-filter: blur(12px);
 }
 
 .maplibregl-popup-content div,
@@ -3385,8 +3255,6 @@ body {
   border: none !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
   background: #000 !important;
 }
 
@@ -3495,8 +3363,6 @@ body {
   width: 100vw;
   height: 100vh;
   background: rgba(8, 10, 18, 0.95);
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
   display: none;
   align-items: center;
   justify-content: center;
@@ -3540,8 +3406,6 @@ body {
   border-radius: 0;
   margin-top: 4px;
   box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
   transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
@@ -3711,53 +3575,30 @@ body {
   border-color: rgba(0, 212, 255, 0.7);
 }
 
-/* Mascot (src/mascot.ts) sits right above #cmd-send, overlapping the bar's top
-   edge so it looks perched on the command bar; #status-text owns the left side. */
-#jarvis-mascot {
+/* The bot (src/bot.ts) is perched right above #cmd-send, resting on the bar's top edge (never over the send button); #status-text owns the left side. */
+#jarvis-bot {
   position: absolute;
-  right: -10px;
-  bottom: calc(100% - 20px);
-  z-index: 11;
-  /* above #chat-history (10) so it stays clickable */
-  width: 56px;
-  height: 56px;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  right: 4px;
+  bottom: calc(100% - 12px); /* sits on the bar's top edge; the send button (z-index 12) stays on top of it */
+  z-index: 11; /* above #chat-history (10) so it stays clickable, below #cmd-send-wrap */
+  width: 32px;
+  height: 32px;
   cursor: pointer;
   user-select: none;
-  /* The box overlaps #cmd-send; only the head (::after) takes clicks. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* the canvas is 1.5x its box (room for hops): pull it back so the box stays 32px */
+#jarvis-bot canvas {
+  position: absolute;
+  left: -8px;
+  top: -16px;
+  display: block;
   pointer-events: none;
 }
 
-#jarvis-mascot::after {
-  content: "";
-  position: absolute;
-  inset: 20% 22% 38%;
-  pointer-events: auto;
-}
-
-#jarvis-mascot .mascot-squash {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 100%;
-  transform-origin: 50% 78%;
-}
-
-#jarvis-mascot .mascot-layer {
-  position: absolute;
-  inset: 0;
-  background-size: 300% 300%;
-  background-repeat: no-repeat;
-}
-
 @media (max-width: 768px) {
-  #jarvis-mascot {
-    width: 48px;
-    height: 48px;
-    right: -4px;
-  }
+  #jarvis-bot { right: 6px; }
 }
 
 /* Flip clock (src/clock.ts), HTC Sense style without the card: one digit per
@@ -3962,50 +3803,14 @@ body {
   display: block;
 }
 
-/* beam: a thin light travelling round the bar border (idle: faint, thinking: bright) */
-@property --beam-a {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-
-#command-bar-inner .cmd-beam {
+#command-bar-inner .cmd-aura-canvas {
   position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1px;
+  inset: -4px;
+  width: calc(100% + 8px);
+  height: calc(100% + 8px);
   pointer-events: none;
-  background: conic-gradient(from var(--beam-a), transparent 0 74%, #38bdf8 84%, #c084fc 93%, transparent 100%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0.25;
-  animation: cmd-beam-spin 8s linear infinite;
-  transition: opacity 0.4s ease;
-}
-
-#command-bar-inner[data-state="thinking"] .cmd-beam,
-#command-bar-inner[data-state="working"] .cmd-beam {
-  opacity: 1;
-  animation-duration: 2.2s;
-}
-
-/* listening / speaking hand the edge to the voice glow (phase 3) */
-#command-bar-inner[data-state="listening"] .cmd-beam,
-#command-bar-inner[data-state="speaking"] .cmd-beam {
-  opacity: 0;
-}
-
-@keyframes cmd-beam-spin {
-  to {
-    --beam-a: 360deg;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #command-bar-inner .cmd-beam {
-    animation: none;
-  }
+  border-radius: inherit;
+  z-index: 1;
 }
 
 #btn-slash:hover,
@@ -4016,6 +3821,7 @@ body {
 /* send: paper-plane icon centred in a liquid-metal ring (src/metal-ring.ts) */
 #cmd-send-wrap {
   position: relative;
+  z-index: 12; /* above the bot (#jarvis-bot, 11) that perches over it */
   flex-shrink: 0;
   width: 30px;
   height: 30px;
@@ -4062,58 +3868,6 @@ body {
     height: 30px;
   }
 }
-
-/* ── Chat bubbles with a bot avatar (src/bubble-avatar.ts) ────────────── */
-.chat-bubble.assistant.has-head {
-  margin-left: 38px;
-  /* room for the avatar, which sits outside the bubble */
-  padding: 6px 12px 8px;
-  border-radius: 4px 12px 12px 12px;
-  /* the sharp corner points at the avatar */
-  background: rgba(6, 8, 14, 0.55);
-  border-color: rgba(14, 165, 233, 0.16);
-  color: rgba(226, 243, 255, 0.95);
-}
-
-.chat-bubble.has-head .bubble-head {
-  display: block;
-  margin-bottom: 2px;
-  line-height: 1.2;
-}
-
-.bubble-avatar {
-  position: absolute;
-  left: -38px;
-  top: 0;
-  width: 28px;
-  height: 28px;
-  display: block;
-  pointer-events: none;
-}
-
-/* only the newest avatar plays with the pointer; old ones are stills */
-.bubble-avatar[data-live="1"] {
-  pointer-events: auto;
-  cursor: pointer;
-}
-
-/* canvas is 1.5x its box (room for hops): pull it back so the box stays 28px */
-.bubble-avatar canvas {
-  position: absolute;
-  left: -7px;
-  top: -7px;
-  display: block;
-}
-
-.bubble-name {
-  display: none !important;
-}
-
-.chat-bubble.user {
-  border-radius: 12px 12px 4px 12px;
-  /* mirror of the assistant bubble */
-}
-
 
 /* status label motion (src/status-label.ts): slide on change, roll in after 10 s of quiet */
 #status-row {

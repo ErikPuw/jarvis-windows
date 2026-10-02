@@ -11,12 +11,14 @@ import { createSocket } from "./ws";
 import { openSettings, checkFirstTimeSetup } from "./settings/index";
 import "./style.css";
 import { setStatusIcon, agentBadge } from "./icons";
-import { mountMascot } from "./mascot";
+import { mountBot } from "./bot";
+import { showStreamLoader, clearStreamLoader } from "./stream-loader";
+import { mountEdgeAura } from "./edge-aura";
 import { mountClock } from "./clock";
 import { mountStatusOrb } from "./status-orb";
 import { mountStatusLabel } from "./status-label";
 import { mountMetalRing } from "./metal-ring";
-import { attachBubbleHead, setBubbleName, setBubbleContent } from "./bubble-avatar";
+import { setAnimPaused } from "./anim-gate";
 import { generateResourcesHTML, generateSystemsHTML } from "./dashboard-hud";
 
 const DEFAULT_FETCH_TIMEOUT_MS = 15000;
@@ -57,22 +59,22 @@ let streamTextBuffer = "";
 let streamTargetText = "";
 let streamTypewriterTimer: any = null;
 let lastStreamRenderAt = 0;
+let streamTail: Text | null = null; // last text node of the rendered stream: plain chunks are appended to it
+let streamPendingFull = false; // a full markdown render was skipped (throttle) and is still owed
+let streamDirty = false; // plain chunks were appended since the last full render
+let streamLastAppendAt = 0;
 let wasStreamed = false;
 let audioChunkBuffer: Uint8Array[] | null = null;
 
 const chatHistory = document.getElementById("chat-history")!;
 const statusEl = document.getElementById("status-text")!;
 const errorEl = document.getElementById("error-text")!;
-mountMascot(document.getElementById("command-bar-inner")!);
+mountBot(document.getElementById("command-bar-inner")!);
+mountEdgeAura(document.getElementById("command-bar-inner")!);
 mountClock();
 mountStatusOrb(document.getElementById("status-orb")!);
 mountStatusLabel(document.getElementById("status-row")!, statusEl);
 mountMetalRing(document.getElementById("cmd-send-wrap")!);
-{
-  // command-bar beam follows the JARVIS state (CSS keys on data-state)
-  const bar = document.getElementById("command-bar-inner")!;
-  window.addEventListener("jarvis:mascot", (e) => { bar.dataset.state = String((e as CustomEvent).detail); });
-}
 const commandInput = document.getElementById("command-input") as HTMLTextAreaElement;
 const filePinnedContainer = document.getElementById("file-pinned-container")!;
 const filePinnedName = document.getElementById("file-pinned-name")!;
@@ -99,11 +101,25 @@ function updateScrollFade() {
   // Check if we are within 10px of the bottom
   const isAtBottom = Math.abs(chatHistory.scrollHeight - chatHistory.clientHeight - chatHistory.scrollTop) < 10;
   chatHistory.classList.toggle("at-bottom", isAtBottom);
+  chatHistory.classList.toggle("overflowing", chatHistory.scrollHeight > chatHistory.clientHeight + 1);
 
   // If user scrolled near the bottom, reset the flag so auto-scroll can resume
   if (isAtBottom) {
     userHasScrolledUp = false;
   }
+}
+
+/**
+ * The scrollTop that puts the last real bubble at the bottom. scrollHeight is not used because it
+ * also counts decorative overflow: the stream loader's gooey box spills ~30px below its bubble,
+ * which scrolled the chat up and left an empty band under the loader.
+ */
+function contentBottomScrollTop(): number {
+  let last = chatHistory.lastElementChild as HTMLElement | null;
+  while (last && last.offsetHeight === 0) last = last.previousElementSibling as HTMLElement | null; // skip display:none
+  if (!last) return 0;
+  const pad = parseFloat(getComputedStyle(chatHistory).paddingBottom) || 0;
+  return Math.max(0, last.offsetTop + last.offsetHeight + pad - chatHistory.clientHeight);
 }
 
 function scrollToBottomIfNeeded(force = false) {
@@ -113,7 +129,7 @@ function scrollToBottomIfNeeded(force = false) {
   }
 
   if (force || !userHasScrolledUp) {
-    chatHistory.scrollTop = chatHistory.scrollHeight;
+    chatHistory.scrollTop = contentBottomScrollTop();
     updateScrollFade();
   }
 }
@@ -121,23 +137,72 @@ function scrollToBottomIfNeeded(force = false) {
 // Detect manual user scrolling
 function handleManualScroll() {
   if (!chatHistory) return;
-  const isAtBottom = Math.abs(chatHistory.scrollHeight - chatHistory.clientHeight - chatHistory.scrollTop) < 15;
+  const isAtBottom = Math.abs(contentBottomScrollTop() - chatHistory.scrollTop) < 15;
   if (!isAtBottom) {
     userHasScrolledUp = true;
   }
 }
 
 chatHistory.addEventListener("scroll", updateScrollFade);
+// the list grows until it hits its max-height; that last resize is when it starts to overflow
+new ResizeObserver(updateScrollFade).observe(chatHistory);
 chatHistory.addEventListener("wheel", handleManualScroll, { passive: true });
 chatHistory.addEventListener("touchmove", handleManualScroll, { passive: true });
+
+/**
+ * Reveals streamed text at a steady, frame-locked pace. It used to be setInterval(16ms), which does
+ * not line up with the display's frames: some frames got 0 new characters and the next got 2-4,
+ * which reads as stutter. Now one requestAnimationFrame loop turns elapsed time into characters
+ * (fractional remainder carried over), at a base rate that speeds up with the backlog so it never
+ * falls far behind the model.
+ */
+const STREAM_BASE_CPS = 60; // characters per second when keeping up
+const STREAM_CATCHUP_S = 0.3; // otherwise drain the backlog in about this long
+
+// characters that can change how markdown renders (emphasis, code, lists, headings, links, tables, entities)
+const STREAM_MARKUP = /[*_`#\[\]()<>&|~=\\\n\-\d!]/;
+
+function lastTextNode(el: HTMLElement): Text | null {
+  const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let last: Text | null = null;
+  for (let n = w.nextNode(); n; n = w.nextNode()) last = n as Text;
+  return last;
+}
+
+/**
+ * Shows the newly revealed `chunk`. Re-parsing all the markdown and rewriting innerHTML every frame re-lays
+ * out the whole bubble (and cost grew with the square of the reply length), which read as jitter. So a chunk
+ * of plain text is just appended to the last text node; anything that may change the markup, a newline, or
+ * the settle after a pause does the full render (throttled as the text grows).
+ */
+function renderStreamText(container: HTMLElement, chunk: string, now: number, final = false) {
+  if (!final && !streamPendingFull && streamTail?.isConnected && !STREAM_MARKUP.test(chunk)) {
+    streamTail.appendData(chunk);
+    streamDirty = true;
+    return;
+  }
+  const gap = streamTextBuffer.length > 2000 ? 100 : streamTextBuffer.length > 500 ? 50 : 0;
+  if (!final && now - lastStreamRenderAt < gap) { streamPendingFull = true; return; }
+  lastStreamRenderAt = now;
+  streamPendingFull = streamDirty = false;
+  container.innerHTML = formatMarkdown(streamTextBuffer);
+  streamTail = lastTextNode(container);
+}
 
 function startStreamTypewriter() {
   stopStreamTypewriter();
   streamTextBuffer = "";
   streamTargetText = "";
   lastStreamRenderAt = 0;
+  streamTail = null;
+  streamPendingFull = streamDirty = false;
+  let acc = 0; // characters owed to the reader (fractional)
+  let prev = performance.now();
 
-  streamTypewriterTimer = setInterval(() => {
+  const step = (now: number) => {
+    streamTypewriterTimer = requestAnimationFrame(step);
+    const dt = Math.min((now - prev) / 1000, 0.1);
+    prev = now;
     if (!activeAssistantBubble) return;
 
     // Nếu text đích bắt đầu bằng prefix của Interactive Card, ta không hiển thị text thô qua typewriter
@@ -152,44 +217,30 @@ function startStreamTypewriter() {
       activeAssistantBubble.appendChild(textContainer);
     }
 
-    const diff = streamTargetText.length - streamTextBuffer.length;
-    if (diff <= 0) return;
-
-    // Tự động điều chỉnh tốc độ hiển thị dựa trên lượng ký tự đang chờ (buffer lag)
-    let charsToTake = 1;
-    if (diff > 100) {
-      charsToTake = 6;
-    } else if (diff > 50) {
-      charsToTake = 4;
-    } else if (diff > 15) {
-      charsToTake = 2;
+    const backlog = streamTargetText.length - streamTextBuffer.length;
+    if (backlog <= 0) {
+      acc = 0;
+      // caught up and quiet for a moment: one full render fixes any markdown the plain appends skipped
+      if ((streamPendingFull || streamDirty) && now - streamLastAppendAt > 150) { renderStreamText(textContainer, "", now, true); scrollToBottomIfNeeded(); }
+      return;
     }
 
-    streamTextBuffer += streamTargetText.slice(
-      streamTextBuffer.length,
-      streamTextBuffer.length + charsToTake
-    );
-
-    // formatMarkdown re-parses the whole accumulated string (~15 regexes plus a
-    // table parser) and rewrites innerHTML, forcing a full re-layout. Doing
-    // that every 16ms made the cost grow with the square of the reply length,
-    // competing with audio decoding and the orb's render loop. The buffer still
-    // advances every tick; only the repaint backs off as the text grows.
-    const now = performance.now();
-    const minRenderGap =
-      streamTextBuffer.length > 2000 ? 100 :
-      streamTextBuffer.length > 500 ? 50 : 16;
-    if (now - lastStreamRenderAt >= minRenderGap || streamTextBuffer.length >= streamTargetText.length) {
-      lastStreamRenderAt = now;
-      textContainer.innerHTML = formatMarkdown(streamTextBuffer);
-      scrollToBottomIfNeeded();
-    }
-  }, 16); // ~60fps smooth updates
+    acc += Math.max(STREAM_BASE_CPS, backlog / STREAM_CATCHUP_S) * dt;
+    const take = Math.min(backlog, Math.floor(acc));
+    if (take <= 0) return;
+    acc -= take;
+    const chunk = streamTargetText.slice(streamTextBuffer.length, streamTextBuffer.length + take);
+    streamTextBuffer += chunk;
+    streamLastAppendAt = now;
+    renderStreamText(textContainer, chunk, now);
+    scrollToBottomIfNeeded();
+  };
+  streamTypewriterTimer = requestAnimationFrame(step);
 }
 
 function stopStreamTypewriter() {
   if (streamTypewriterTimer) {
-    clearInterval(streamTypewriterTimer);
+    cancelAnimationFrame(streamTypewriterTimer);
     streamTypewriterTimer = null;
   }
   // Flush whatever the typewriter had not caught up to yet. It only ever
@@ -367,12 +418,6 @@ export function formatMarkdown(text: string): string {
 }
 
 
-/** Bubble text without the avatar/name header. */
-function bubblePlainText(el: HTMLElement): string {
-  const head = el.querySelector(":scope > .bubble-head");
-  return (el.textContent ?? "").slice(head?.textContent?.length ?? 0);
-}
-
 function addChatMessage(role: "user" | "assistant", text: string): HTMLElement | null {
   console.log(`[UI] Adding ${role} message: ${text}`);
   if (!chatHistory) {
@@ -382,7 +427,7 @@ function addChatMessage(role: "user" | "assistant", text: string): HTMLElement |
 
   // De-duplication: Don't add the exact same message twice in a row
   const lastBubble = chatHistory.lastElementChild as HTMLElement;
-  if (lastBubble && lastBubble.classList.contains(role) && bubblePlainText(lastBubble) === text) {
+  if (lastBubble && lastBubble.classList.contains(role) && lastBubble.textContent === text) {
     console.log("[UI] Duplicate message detected, skipping add.");
     return lastBubble;
   }
@@ -424,7 +469,6 @@ function addChatMessage(role: "user" | "assistant", text: string): HTMLElement |
       scrollToBottomIfNeeded(true);
     });
   } else {
-    attachBubbleHead(bubble);
     // Hiệu ứng stream gõ chữ cho assistant
     let currentText = "";
     // Sử dụng regex để tách từ nhưng giữ nguyên các dấu xuống dòng và khoảng trắng
@@ -434,7 +478,7 @@ function addChatMessage(role: "user" | "assistant", text: string): HTMLElement |
     const timer = setInterval(() => {
       if (i < tokens.length) {
         currentText += tokens[i];
-        setBubbleContent(bubble, formatMarkdown(currentText));
+        bubble.innerHTML = formatMarkdown(currentText);
         i++;
 
         // Tự động cuộn xuống dưới
@@ -467,7 +511,7 @@ function openImageLightbox(src: string) {
     const closeBtn = document.createElement("button");
     closeBtn.innerHTML = "✕";
     closeBtn.id = "lightbox-close";
-    closeBtn.style.cssText = "position:fixed; top:20px; right:20px; font-size:20px; color:#fff; background:rgba(8,10,18,0.7); border:1px solid rgba(0,212,255,0.3); border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:2010; backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);box-shadow:0 0 10px rgba(0,212,255,0.2);";
+    closeBtn.style.cssText = "position:fixed; top:20px; right:20px; font-size:20px; color:#fff; background:rgba(8,10,18,0.7); border:1px solid rgba(0,212,255,0.3); border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:2010; box-shadow:0 0 10px rgba(0,212,255,0.2);";
     lightbox.appendChild(closeBtn);
 
     document.body.appendChild(lightbox);
@@ -622,7 +666,6 @@ function renderInteractiveCard(container: HTMLElement, data: any) {
     existingCard!.className = `interactive-card tracker-card${data.status ? " " + data.status : ""}`;
     if (existingName) {
       existingName.textContent = agentBadge(data.title).name;
-      if (activeAssistantBubble) setBubbleName(activeAssistantBubble, existingName.textContent);
     }
     existingCard!.querySelector(".tracker-label")!.textContent = trackerLabel(data.label);
     setStatusIcon(existingIcon, data.status, "tracker", 14);
@@ -853,7 +896,6 @@ function renderInteractiveCard(container: HTMLElement, data: any) {
       body.appendChild(img);
     } else if (data.title) {
       const badge = agentBadge(data.title);
-      if (activeAssistantBubble) setBubbleName(activeAssistantBubble, badge.name);
       const iconBox = document.createElement("span");
       iconBox.className = "tracker-agent-icon";
       iconBox.appendChild(badge.icon);
@@ -1521,6 +1563,10 @@ function captureAndSendWebcamFrame() {
 const canvas = document.getElementById("orb-canvas") as HTMLCanvasElement;
 const orb = createOrb(canvas);
 
+// Something covers the screen (settings, map, media): stop the orb and every decorative loop together.
+const pauseScene = () => { orb.pause(); setAnimPaused(true); };
+const resumeScene = () => { orb.resume(); setAnimPaused(false); };
+
 const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
 const WS_URL = `${wsProto}//${window.location.host}/ws/voice`;
 const socket = createSocket(WS_URL);
@@ -1547,7 +1593,6 @@ function showSupersededBanner(reason: string, onReconnect: () => void) {
       display: flex;
       align-items: center;
       gap: 12px;
-      backdrop-filter: blur(8px);
     `;
     document.body.appendChild(banner);
   }
@@ -1822,16 +1867,8 @@ socket.onMessage((msg) => {
 
     // 2. Tạo bong bóng chat cho phản hồi của Assistant (LLM)
     activeAssistantBubble = document.createElement("div");
-    // Thêm class typing-loader với hiệu ứng Gemini Live Fluid Aurora 3 giọt hòa sắc (Mẫu 29)
-    activeAssistantBubble.className = "chat-bubble assistant typing-loader";
-    activeAssistantBubble.innerHTML = `
-      <div class="gemini-mesh-container">
-        <div class="gemini-blob gemini-blob-1"></div>
-        <div class="gemini-blob gemini-blob-2"></div>
-        <div class="gemini-blob gemini-blob-3"></div>
-      </div>
-    `;
-    attachBubbleHead(activeAssistantBubble);
+    activeAssistantBubble.className = "chat-bubble assistant";
+    showStreamLoader(activeAssistantBubble); // loader until the first text (stream-loader.ts)
     chatHistory.appendChild(activeAssistantBubble);
 
     requestAnimationFrame(() => {
@@ -1842,8 +1879,7 @@ socket.onMessage((msg) => {
     const chunkText = msg.text as string;
     if (chunkText && activeAssistantBubble) {
       if (activeAssistantBubble.classList.contains("typing-loader")) {
-        activeAssistantBubble.classList.remove("typing-loader");
-        setBubbleContent(activeAssistantBubble, "");
+        clearStreamLoader(activeAssistantBubble);
       }
       activeAssistantText += chunkText;
       streamTargetText = activeAssistantText; // Feed typewriter target buffer
@@ -1889,8 +1925,7 @@ socket.onMessage((msg) => {
     // Đảm bảo xả toàn bộ chữ còn lại ra màn hình
     if (activeAssistantBubble) {
       if (activeAssistantBubble.classList.contains("typing-loader")) {
-        activeAssistantBubble.classList.remove("typing-loader");
-        setBubbleContent(activeAssistantBubble, "");
+        clearStreamLoader(activeAssistantBubble);
       }
       let textContainer = activeAssistantBubble.querySelector(".bubble-text") as HTMLElement;
       if (!textContainer) {
@@ -2073,18 +2108,26 @@ setTimeout(() => {
 
 
 // Resume AudioContext on ANY user interaction (browser autoplay policy)
-function ensureAudioContext() {
-  const ctx = audioPlayer.getAnalyser().context as AudioContext;
-  if (ctx.state === "suspended") {
-    ctx.resume().then(() => console.log("[audio] context resumed"));
-  }
+// Browsers only let audio start after a gesture, so it is unlocked from the first tap/click/key, once. Nothing
+// is resumed at load (that was the "AudioContext was not allowed to start" warning), and after unlocking the
+// player keeps its context suspended until something plays.
+const UNLOCK_EVENTS = ["click", "touchstart", "keydown"] as const;
+let unlockingAudio = false;
+function unlockAudio() {
+  if (unlockingAudio) return;
+  unlockingAudio = true;
+  audioPlayer.unlock()
+    .then(() => {
+      console.log("[audio] context resumed");
+      for (const ev of UNLOCK_EVENTS) document.removeEventListener(ev, unlockAudio);
+    })
+    .catch(() => { /* not allowed yet: stay armed for the next gesture */ })
+    .finally(() => { unlockingAudio = false; });
 }
-document.addEventListener("click", ensureAudioContext);
-document.addEventListener("touchstart", ensureAudioContext);
-document.addEventListener("keydown", ensureAudioContext, { once: true });
-
-// Try to resume audio context on load
-ensureAudioContext();
+for (const ev of UNLOCK_EVENTS) document.addEventListener(ev, unlockAudio);
+if (new URLSearchParams(location.search).has("debug")) {
+  void import("./perf-debug").then((m) => m.mountPerfDebug(audioPlayer.getAnalyser().context as AudioContext));
+}
 
 // ---------------------------------------------------------------------------
 // UI Controls
@@ -2163,7 +2206,11 @@ btnWebcamToggle.addEventListener("click", (e) => {
 // the "restart succeeded" signal (mirrors the Telegram restart-notice flow),
 // so "restarting..." is cleared the moment the new server accepts the socket.
 let restartPending = false;
-const RESTART_RETURN_TIMEOUT_MS = 30000;
+// Loading the models takes a while; 30s was shorter than a normal start (and than the WebSocket's own
+// backoff, 1+2+4+8+16s), so a healthy restart was reported as failed.
+const RESTART_RETURN_TIMEOUT_MS = 90000;
+const RESTART_POLL_MS = 2000;
+let restartPoll = 0;
 
 btnRestart.addEventListener("click", async (e) => {
   e.stopPropagation();
@@ -2182,10 +2229,14 @@ btnRestart.addEventListener("click", async (e) => {
     statusEl.textContent = "Khởi động lại thất bại";
     return;
   }
-  // Nếu server không quay lại trong 30s, đừng để UI kẹt mãi ở "restarting...".
+  // Thử nối lại mỗi 2s thay vì chờ nhịp lùi dần của WebSocket (tối đa 30s giữa hai lần).
+  clearInterval(restartPoll);
+  restartPoll = window.setInterval(() => socket.retryNow(), RESTART_POLL_MS);
+  // Nếu server không quay lại kịp, đừng để UI kẹt mãi ở "restarting...".
   setTimeout(() => {
     if (restartPending) {
       restartPending = false;
+      clearInterval(restartPoll);
       transition("idle");
       statusEl.textContent = "Khởi động lại thất bại (server không phản hồi)";
     }
@@ -2195,6 +2246,7 @@ btnRestart.addEventListener("click", async (e) => {
 socket.onReconnect(() => {
   if (restartPending) {
     restartPending = false;
+    clearInterval(restartPoll);
     // Worker mới đã lên → xóa "restarting...".
     transition("idle");
   }
@@ -2257,13 +2309,13 @@ async function loadLogs(container: Element) {
     const data = await res.json();
     if (data.success) {
       const lines = data.logs.split("\n");
-      container.innerHTML = lines.map((line: string) => {
-        let cls = "";
-        if (line.includes("ERROR")) cls = "error";
-        else if (line.includes("WARNING")) cls = "warning";
-        else if (line.includes("INFO")) cls = "info";
-        return `<div class="log-line ${cls}">${line}</div>`;
-      }).join("");
+      container.textContent = "";
+      for (const line of lines as string[]) { // textContent: a log line holding "<" must not become markup
+        const row = document.createElement("div");
+        row.className = "log-line" + (line.includes("ERROR") ? " error" : line.includes("WARNING") ? " warning" : line.includes("INFO") ? " info" : "");
+        row.textContent = line;
+        container.appendChild(row);
+      }
       // Scroll to bottom
       container.scrollTop = container.scrollHeight;
     } else {
@@ -2868,6 +2920,7 @@ function toggleMap(forceShow?: boolean) {
 
   if (isOpening) {
     initMap();
+    requestAnimationFrame(() => mapLibreMap?.resize()); // the container was display:none until now
 
     // On mobile, always open in full screen. On desktop, default to mini mode.
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
@@ -2876,15 +2929,15 @@ function toggleMap(forceShow?: boolean) {
       mapPanel.classList.remove("mini-mode");
       mapPanel.classList.add("full-screen");
       isMapFullScreen = true;
-      orb.pause(); // Pause only in full screen
+      pauseScene(); // Pause only in full screen
     } else {
       mapPanel.classList.add("mini-mode");
       mapPanel.classList.remove("full-screen");
       isMapFullScreen = false;
-      orb.resume(); // Keep orb running in mini mode
+      resumeScene(); // Keep orb running in mini mode
     }
   } else {
-    orb.resume();
+    resumeScene();
   }
 }
 
@@ -2896,9 +2949,9 @@ function toggleMapFullScreen() {
 
   // Orb control: pause if full screen, resume if mini
   if (isMapFullScreen) {
-    orb.pause();
+    pauseScene();
   } else {
-    orb.resume();
+    resumeScene();
   }
 
   // Trigger map resize after animation
@@ -3454,7 +3507,7 @@ let closeMediaPlayer = function () {
   mediaPlayer.classList.add("hidden");
   document.body.classList.remove("media-playing");
   mediaPlayerInner.innerHTML = "";
-  orb.resume();
+  resumeScene();
   socket.send({ type: "media_state", active: false });
   // Khôi phục trạng thái nếu không còn phát audio
   if (!audioPlayer.isPlaying()) {
@@ -3467,17 +3520,49 @@ let closeMediaPlayer = function () {
 window.addEventListener("jarvis:overlay", (event) => {
   const { open } = (event as CustomEvent<{ open: boolean }>).detail;
   if (open) {
-    orb.pause();
+    pauseScene();
     return;
   }
   const mapFullScreen = isMapFullScreen && !mapPanel.classList.contains("hidden");
   const mediaOpen = !mediaPlayer.classList.contains("hidden");
-  if (!mapFullScreen && !mediaOpen) orb.resume();
+  if (!mapFullScreen && !mediaOpen) resumeScene();
 });
+
+/**
+ * Plays an HLS (.m3u8) stream. Safari/iOS play it natively, so nothing is downloaded; elsewhere hls.js is imported
+ * only now (it used to be a blocking CDN <script> in index.html on every page load, though only IPTV needs it).
+ */
+async function playHls(video: HTMLVideoElement, src: string): Promise<void> {
+  const play = () => video.play().catch((e) => console.log("Auto play blocked:", e));
+  if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = src;
+    video.addEventListener("loadedmetadata", play);
+    return;
+  }
+  const Hls = (await import("hls.js")).default;
+  if (!Hls.isSupported()) {
+    showError("Trình duyệt của ngài không hỗ trợ phát luồng HLS.");
+    return;
+  }
+  const hls = new Hls();
+  hls.loadSource(src);
+  hls.attachMedia(video);
+  hls.on(Hls.Events.MANIFEST_PARSED, play);
+
+  // Hủy stream khi đóng player
+  const originalClose = closeMediaPlayer;
+  closeMediaPlayer = () => {
+    try {
+      hls.destroy();
+    } catch (e) { }
+    closeMediaPlayer = originalClose;
+    closeMediaPlayer();
+  };
+}
 
 function openMediaPlayer(title: string, embedHtml: string) {
   document.body.classList.add("media-playing");
-  orb.pause();
+  pauseScene();
   socket.send({ type: "media_state", active: true });
   // Server chỉ chặn TTS mới; audio đã xếp lịch trong trình duyệt phải dừng ngay, không đọc chồng lên media.
   audioPlayer.stop();
@@ -3494,34 +3579,7 @@ function openMediaPlayer(title: string, embedHtml: string) {
     `;
 
     const video = document.getElementById("iptv-video") as HTMLVideoElement;
-    const Hls = (window as any).Hls;
-
-    if (Hls && Hls.isSupported()) {
-      const hls = new Hls();
-      hls.loadSource(embedHtml);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(e => console.log("Auto play blocked:", e));
-      });
-
-      // Hủy stream khi đóng player
-      const originalClose = closeMediaPlayer;
-      closeMediaPlayer = () => {
-        try {
-          hls.destroy();
-        } catch (e) { }
-        closeMediaPlayer = originalClose;
-        closeMediaPlayer();
-      };
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      // Hỗ trợ HLS native trên Safari/iOS
-      video.src = embedHtml;
-      video.addEventListener("loadedmetadata", () => {
-        video.play().catch(e => console.log("Auto play blocked:", e));
-      });
-    } else {
-      showError("Trình duyệt của ngài không hỗ trợ phát luồng HLS.");
-    }
+    void playHls(video, embedHtml);
   } else {
     // Luồng Youtube/Phim thông thường dạng Iframe/HTML5 video cũ
     mediaPlayerInner.innerHTML = `

@@ -3,6 +3,7 @@
 // paints a metal disc on a WebGL2 canvas; CSS masks it down to a thin ring, so the
 // button (icon + morphicons) inside stays untouched. No WebGL2 → data-metal="off",
 // the button simply has no ring.
+import { onAnimGate } from "./anim-gate";
 import {
   ShaderMount, liquidMetalFragmentShader, LiquidMetalShapes, ShaderFitOptions,
   getShaderColorFromString,
@@ -20,7 +21,7 @@ export function mountMetalRing(wrap: HTMLElement): void {
   wrap.prepend(face);
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
   try {
-    new ShaderMount(face, liquidMetalFragmentShader, {
+    const mount = new ShaderMount(face, liquidMetalFragmentShader, {
       u_fit: ShaderFitOptions.contain,
       u_scale: 1,
       u_rotation: 0,
@@ -44,6 +45,7 @@ export function mountMetalRing(wrap: HTMLElement): void {
       u_shape: LiquidMetalShapes.circle,
     }, undefined, still ? 0 : 0.5);
     wrap.dataset.metal = "on";
+    if (!still) onAnimGate((p) => mount.setSpeed(p ? 0 : 0.5)); // speed 0 stops the shader's own rAF loop
   } catch {
     face.remove();
     wrap.dataset.metal = "off";
