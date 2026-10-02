@@ -3503,7 +3503,7 @@ socket.onMessage((msg: any) => {
 const mediaPlayer = document.getElementById("media-player")!;
 const mediaPlayerInner = document.getElementById("media-player-inner")!;
 
-let closeMediaPlayer = function () {
+const closeMediaPlayer = function () {
   mediaPlayer.classList.add("hidden");
   document.body.classList.remove("media-playing");
   mediaPlayerInner.innerHTML = "";
@@ -3528,38 +3528,6 @@ window.addEventListener("jarvis:overlay", (event) => {
   if (!mapFullScreen && !mediaOpen) resumeScene();
 });
 
-/**
- * Plays an HLS (.m3u8) stream. Safari/iOS play it natively, so nothing is downloaded; elsewhere hls.js is imported
- * only now (it used to be a blocking CDN <script> in index.html on every page load, though only IPTV needs it).
- */
-async function playHls(video: HTMLVideoElement, src: string): Promise<void> {
-  const play = () => video.play().catch((e) => console.log("Auto play blocked:", e));
-  if (video.canPlayType("application/vnd.apple.mpegurl")) {
-    video.src = src;
-    video.addEventListener("loadedmetadata", play);
-    return;
-  }
-  const Hls = (await import("hls.js")).default;
-  if (!Hls.isSupported()) {
-    showError("Trình duyệt của ngài không hỗ trợ phát luồng HLS.");
-    return;
-  }
-  const hls = new Hls();
-  hls.loadSource(src);
-  hls.attachMedia(video);
-  hls.on(Hls.Events.MANIFEST_PARSED, play);
-
-  // Hủy stream khi đóng player
-  const originalClose = closeMediaPlayer;
-  closeMediaPlayer = () => {
-    try {
-      hls.destroy();
-    } catch (e) { }
-    closeMediaPlayer = originalClose;
-    closeMediaPlayer();
-  };
-}
-
 function openMediaPlayer(title: string, embedHtml: string) {
   document.body.classList.add("media-playing");
   pauseScene();
@@ -3568,26 +3536,12 @@ function openMediaPlayer(title: string, embedHtml: string) {
   audioPlayer.stop();
   audioChunkBuffer = null;
 
-  // Phát hiện luồng phát .m3u8 (IPTV)
-  const isM3u8 = embedHtml.includes(".m3u8") || embedHtml.startsWith("http") && !embedHtml.includes("<iframe") && !embedHtml.includes("<video");
-
-  if (isM3u8) {
-    mediaPlayerInner.innerHTML = `
-      <div style="position:absolute;top:10px;left:12px;font-size:9px;letter-spacing:2px;color:rgba(0,212,255,0.5);z-index:5;text-transform:uppercase">${title || "NOW PLAYING IPTV"}</div>
-      <div class="media-player-close" id="btn-close-media-player">&#10005;</div>
-      <video id="iptv-video" controls autoplay playsinline style="width:100%;height:100%;background:#000;display:block;object-fit:contain;"></video>
-    `;
-
-    const video = document.getElementById("iptv-video") as HTMLVideoElement;
-    void playHls(video, embedHtml);
-  } else {
-    // Luồng Youtube/Phim thông thường dạng Iframe/HTML5 video cũ
-    mediaPlayerInner.innerHTML = `
-      <div style="position:absolute;top:10px;left:12px;font-size:9px;letter-spacing:2px;color:rgba(0,212,255,0.5);z-index:5;text-transform:uppercase">${title || "NOW PLAYING"}</div>
-      <div class="media-player-close" id="btn-close-media-player">&#10005;</div>
-      ${embedHtml}
-    `;
-  }
+  // Luồng Youtube/Phim dạng Iframe/HTML5 video
+  mediaPlayerInner.innerHTML = `
+    <div style="position:absolute;top:10px;left:12px;font-size:9px;letter-spacing:2px;color:rgba(0,212,255,0.5);z-index:5;text-transform:uppercase">${title || "NOW PLAYING"}</div>
+    <div class="media-player-close" id="btn-close-media-player">&#10005;</div>
+    ${embedHtml}
+  `;
 
   mediaPlayer.classList.remove("hidden");
   document.getElementById("btn-close-media-player")?.addEventListener("click", closeMediaPlayer);
