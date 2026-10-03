@@ -460,6 +460,7 @@ def _scan_agents() -> list[dict]:
             "goose": "mở giao diện Goose",
             "history": "xem lại lịch sử trò chuyện",
             "image": "nâng cấp độ phân giải ảnh bằng Upscayl",
+            "legal": "tra cứu luật giao thông đường bộ",
             "media": "mở nhạc lofi trên Youtube",
             "notes": "ghi chú lại ý tưởng dự án",
             "office": "chỉnh sửa tệp báo cáo Word",
@@ -467,6 +468,7 @@ def _scan_agents() -> list[dict]:
             "rag": "tóm tắt tài liệu đính kèm",
             "search": "thời tiết Hà Nội hôm nay thế nào",
             "security": "quét cổng và kiểm tra an ninh mạng",
+            "vietlott": "phân tích kết quả Mega 6/45",
             "vision": "chụp màn hình hiện tại",
             "webcam": "mở camera xem trực tiếp",
             "win_control": "phóng to cửa sổ trình duyệt",
@@ -478,6 +480,7 @@ def _scan_agents() -> list[dict]:
             "win_control": "Agent Windows Control",
             "email": "Agent Email & Calendar",
             "rag": "Agent Document RAG",
+            "vietlott": "Agent Vietlott",
             "goose": "Agent Goose",
             "office": "Agent Office Suite",
             "vision": "Agent Vision Screen",
@@ -487,6 +490,7 @@ def _scan_agents() -> list[dict]:
             "project": "Agent Project Health",
             "notes": "Agent Notes Manager",
             "media": "Agent Media Stream",
+            "legal": "Agent Legal Lookup",
             "image": "Agent Image Upscaler",
             "history": "Agent History Query",
             "dream": "Agent Dream Cycle",
@@ -1443,6 +1447,33 @@ class MemoryControlUpdateBody(BaseModel):
 class MemoryControlDeleteBody(BaseModel):
     kind: MemoryControlKind
     id: int
+
+
+class EvolutionUpdateBody(BaseModel):
+    id: str
+    content: str
+
+
+@router.get("/api/evolution/list")
+async def api_evolution_list(q: str = "", limit: int = 50, offset: int = 0):
+    """Hai file tiến hóa (STYLE.md đang áp dụng, Evolution.md nhật ký) cho Settings → Bộ nhớ → Evolution."""
+    from engine.core.evolution import list_evolution_files
+
+    items = await asyncio.to_thread(list_evolution_files)
+    needle = q.strip().lower()
+    if needle:
+        items = [i for i in items if needle in i["title"].lower() or needle in i["content"].lower()]
+    return {"success": True, "items": items[offset:offset + limit], "total": len(items)}
+
+
+@router.post("/api/evolution/update")
+async def api_evolution_update(body: EvolutionUpdateBody):
+    from engine.core.evolution import save_evolution_file
+
+    result = await save_evolution_file(body.id, body.content)
+    if result.get("code") == "unknown_id":
+        return JSONResponse(result, status_code=404)
+    return result
 
 
 @router.get("/api/memory-control/summary")

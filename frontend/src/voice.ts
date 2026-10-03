@@ -18,9 +18,18 @@ export interface VoiceInput {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const webkitSpeechRecognition: any;
 
+const COARSE_POINTER = matchMedia("(pointer: coarse)").matches; // a phone or tablet
+
+/** What speech recognition has been doing, for the ?debug=1 panel (a phone has no console): starts/ends, results, errors by code, the last thing heard. */
+export const micStats = {
+  on: false, starts: 0, ends: 0, results: 0, finals: 0, errors: {} as Record<string, number>,
+  lastAt: 0, lastText: "", lastConf: 0,
+};
+
 export function createVoiceInput(
   onTranscript: (text: string) => void,
-  onError: (msg: string) => void
+  onError: (msg: string) => void,
+  onGiveUp: () => void = () => {}
 ): VoiceInput {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const SR = (window as any).SpeechRecognition || (typeof webkitSpeechRecognition !== "undefined" ? webkitSpeechRecognition : null);
@@ -40,10 +49,54 @@ export function createVoiceInput(
   recognition.interimResults = true;
   recognition.lang = "vi-VN";
 
+  // Flow (as the original): start() -> speech heard -> pause() while JARVIS thinks and talks -> resume() as soon as it is done -> and so on;
+  // stop() when the user switches the mic off. Nothing coming in is retried: a start that never comes up (iOS silently ignores it: no yellow
+  // dot) is aborted and retried after RETRY_MS, and so is a session that ends without hearing anything; after MAX_EMPTY failures in a row
+  // the mic is stopped for good and the UI is told to switch its button off.
+  const RETRY_MS = 3000;
+  const FIRST_START_MS = 15_000; // the very first start may be waiting for the "allow the microphone" dialog
+  const MAX_EMPTY = 5;
   let shouldListen = false;
   let paused = false;
+  let starting = false; // start() was called and onstart has not come yet
+  let everStarted = false;
+  let aborting = false; // the watchdog aborted a start that never came up
+  let pendingStart = false; // start() was refused because the previous session was still ending: start again when it has ended
+  let heard = false; // this session produced a result
+  let empty = 0; // failures in a row (no start, or a session that heard nothing)
+  let retry = 0;
+  let watch = 0;
   let isActuallyListening = false;
   let statusChangeCb: ((val: boolean) => void) | null = null;
+
+  const giveUp = () => {
+    shouldListen = false;
+    clearTimeout(retry);
+    clearTimeout(watch);
+    onGiveUp();
+  };
+
+  const begin = () => {
+    if (starting) return; // already on its way (start() and resume() in one click)
+    clearTimeout(retry);
+    try {
+      recognition.start();
+    } catch {
+      pendingStart = true; // the old session has not ended yet; onend will start it
+      return;
+    }
+    heard = false;
+    starting = true;
+    clearTimeout(watch);
+    watch = window.setTimeout(() => {
+      if (!starting || !shouldListen || paused) return;
+      starting = false;
+      if (++empty > MAX_EMPTY) { giveUp(); return; }
+      aborting = true;
+      try { recognition.abort(); } catch { aborting = false; }
+      retry = window.setTimeout(() => { aborting = false; if (shouldListen && !paused) begin(); }, 500);
+    }, everStarted ? RETRY_MS : FIRST_START_MS);
+  };
 
   const setActuallyListening = (val: boolean) => {
     if (isActuallyListening !== val) {
@@ -52,21 +105,40 @@ export function createVoiceInput(
     }
   };
 
-  recognition.onstart = () => setActuallyListening(true);
+  recognition.onstart = () => {
+    starting = false;
+    everStarted = true;
+    clearTimeout(watch);
+    micStats.on = true;
+    micStats.starts++;
+    setActuallyListening(true);
+  };
   recognition.onend = () => {
+    starting = false;
+    clearTimeout(watch);
+    micStats.on = false;
+    micStats.ends++;
     setActuallyListening(false);
-    if (shouldListen && !paused) {
-      try {
-        recognition.start();
-      } catch {
-        // Already started
-      }
-    }
+    if (aborting) { aborting = false; return; } // the watchdog's own retry starts it again
+    if (!shouldListen || paused) { pendingStart = false; return; }
+    if (pendingStart) { pendingStart = false; begin(); return; }
+    if (heard) { empty = 0; begin(); return; }
+    if (++empty > MAX_EMPTY) { giveUp(); return; }
+    retry = window.setTimeout(() => { if (shouldListen && !paused) begin(); }, RETRY_MS);
   };
 
   recognition.onresult = (event: any) => {
+    heard = true;
+    empty = 0;
+    window.dispatchEvent(new Event("jarvis:heard")); // the bot nods while it hears speech
     for (let i = event.resultIndex; i < event.results.length; i++) {
+      const alt = event.results[i][0];
+      micStats.results++;
+      micStats.lastAt = performance.now();
+      micStats.lastText = String(alt?.transcript ?? "").trim();
+      micStats.lastConf = Number(alt?.confidence ?? 0);
       if (event.results[i].isFinal) {
+        micStats.finals++;
         const text = event.results[i][0].transcript.trim();
         if (text) onTranscript(text);
       }
@@ -74,6 +146,7 @@ export function createVoiceInput(
   };
 
   recognition.onerror = (event: any) => {
+    micStats.errors[event.error] = (micStats.errors[event.error] ?? 0) + 1;
     if (event.error === "not-allowed") {
       onError("Microphone access denied. Please allow microphone access.");
       shouldListen = false;
@@ -91,30 +164,30 @@ export function createVoiceInput(
     start() {
       shouldListen = true;
       paused = false;
-      try {
-        recognition.start();
-      } catch {
-        // Already started
-      }
+      empty = 0;
+      begin();
     },
     stop() {
       shouldListen = false;
       paused = false;
+      pendingStart = false;
+      empty = 0;
+      clearTimeout(retry);
+      clearTimeout(watch);
+      starting = false;
       recognition.stop();
     },
     pause() {
       paused = true;
+      pendingStart = false;
+      clearTimeout(retry);
+      clearTimeout(watch);
+      starting = false;
       recognition.stop();
     },
     resume() {
       paused = false;
-      if (shouldListen) {
-        try {
-          recognition.start();
-        } catch {
-          // Already started
-        }
-      }
+      if (shouldListen) begin();
     },
     isListening() {
       return isActuallyListening;
@@ -241,7 +314,7 @@ export interface AudioPlayer {
   enqueueRaw(buffer: ArrayBuffer): Promise<void>;
   /** VieNeu: PCM16 mono đến từng đoạn nhỏ, phát liền mạch (edge dùng enqueue/enqueueRaw). */
   enqueuePcm(base64: string, sampleRate: number, gapMs: number): void;
-  /** Call from a user gesture: lets the browser start audio later. The context idles suspended until something plays. */
+  /** Call from a user gesture: lets the browser start audio later. */
   unlock(): Promise<void>;
   stop(): void;
   getAnalyser(): AnalyserNode;
@@ -273,19 +346,20 @@ export function createAudioPlayer(): AudioPlayer {
   let finishedCallback: (() => void) | null = null;
   let startedCallback: (() => void) | null = null;
 
-  // A running AudioContext keeps the OS audio thread awake even when nothing plays (power and heat on a phone).
-  // Suspend it a moment after the last sound; the next enqueue resumes it.
-  let idleTimer = 0;
-  const IDLE_SUSPEND_MS = 2500;
-  function suspendSoon() {
-    clearTimeout(idleTimer);
-    idleTimer = window.setTimeout(() => {
-      if (!isPlaying && queue.length === 0 && pcmSources.size === 0 && !isProcessing && audioCtx.state === "running") void audioCtx.suspend();
-    }, IDLE_SUSPEND_MS);
+  // The context is never suspended (as the original): iOS ends speech recognition when the audio context is suspended under it.
+  // It is started when something is about to be played (TTS) or on a user gesture that will lead to it (first chat, mic button), and a
+  // context that is already running is left alone.
+  let resuming: Promise<void> | null = null;
+  function ensureRunning(): Promise<void> {
+    if (audioCtx.state === "running") return Promise.resolve();
+    resuming ??= audioCtx.resume()
+      .then(() => console.log("[audio] context resumed"))
+      .catch((e) => console.warn("[audio] resume blocked until the next tap:", e))
+      .finally(() => { resuming = null; });
+    return resuming;
   }
   function finished() {
     finishedCallback?.();
-    suspendSoon();
   }
 
   function playNext() {
@@ -318,13 +392,10 @@ export function createAudioPlayer(): AudioPlayer {
 
   return {
     async enqueue(base64: string) {
-      clearTimeout(idleTimer);
       const generation = playbackGeneration;
       isProcessing = true;
       // Resume audio context (browser autoplay policy)
-      if (audioCtx.state === "suspended") {
-        await audioCtx.resume();
-      }
+      await ensureRunning();
 
       try {
         const binary = atob(base64);
@@ -346,12 +417,9 @@ export function createAudioPlayer(): AudioPlayer {
     },
 
     async enqueueRaw(buffer: ArrayBuffer) {
-      clearTimeout(idleTimer);
       const generation = playbackGeneration;
       isProcessing = true;
-      if (audioCtx.state === "suspended") {
-        await audioCtx.resume();
-      }
+      await ensureRunning();
       try {
         const audioBuffer = await audioCtx.decodeAudioData(buffer.slice(0));
         if (generation !== playbackGeneration) return;
@@ -366,8 +434,7 @@ export function createAudioPlayer(): AudioPlayer {
     },
 
     enqueuePcm(base64: string, sampleRate: number, gapMs: number) {
-      clearTimeout(idleTimer);
-      if (audioCtx.state === "suspended") void audioCtx.resume();
+      void ensureRunning();
       const binary = atob(base64);
       const samples = binary.length >> 1;
       if (samples === 0) return;
@@ -429,9 +496,8 @@ export function createAudioPlayer(): AudioPlayer {
       finished();
     },
 
-    async unlock() {
-      if (audioCtx.state === "suspended") await audioCtx.resume();
-      suspendSoon();
+    unlock() {
+      return ensureRunning();
     },
 
     getAnalyser() {
@@ -488,7 +554,8 @@ export function createInterruptDetector(onInterrupt: () => void): InterruptDetec
     if (!navigator.mediaDevices?.getUserMedia) return false;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        // no autoGainControl: Chrome's AGC turns the operating system's mic level down, and speech recognition then hears you faintly
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false },
       });
       detectorCtx = new AudioContext();
       const source = detectorCtx.createMediaStreamSource(stream);
@@ -532,6 +599,9 @@ export function createInterruptDetector(onInterrupt: () => void): InterruptDetec
 
   return {
     start() {
+      // A phone's loudspeaker sits next to its mic, so voice barge-in is unreliable there, and holding the mic (with echo
+      // cancellation) switches iOS to a call-style audio session that makes the voice very quiet. Tapping interrupts instead.
+      if (COARSE_POINTER) return;
       if (active) return;
       const seq = ++startSeq;
       ensureStream().then((ok) => {

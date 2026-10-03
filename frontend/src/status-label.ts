@@ -1,8 +1,9 @@
 // Status label motion (row = #status-row, label = #status-text):
 //  - a text change slides + fades: the old text slides out as a ghost, the new one slides in,
 //    upward when JARVIS gets busier (idle → thinking → working), downward when it calms down;
-//  - after 10 s of quiet (idle, or listening with nobody talking) the text rolls in (collapses,
-//    the orb stays, dimmed); any state change, key press or click rolls it back out.
+//  - after 10 s of quiet in idle (JARVIS has answered and nothing is going on, mic off) the text rolls in
+//    (collapses, the orb stays, dimmed); any state change, key press or click rolls it back out. The active
+//    states (listening, thinking, working, speaking) never roll in: the user always sees what JARVIS is doing.
 // The label's text/class are written by main.ts (updateStatus/transition); we only observe them.
 const QUIET_MS = 10_000;
 const SLIDE_PX = 8;
@@ -11,7 +12,7 @@ const EASE = "cubic-bezier(0.3, 0.7, 0.2, 1)";
 
 // how "busy" each state is: sets the slide direction
 const RANK: Record<string, number> = { idle: 0, listening: 1, thinking: 2, speaking: 2, working: 3, restarting: 3 };
-const QUIET = new Set(["idle", "listening"]);
+const QUIET = new Set(["idle"]);
 
 export function mountStatusLabel(row: HTMLElement, label: HTMLElement): void {
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;

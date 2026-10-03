@@ -19,7 +19,6 @@ import { mountStatusOrb } from "./status-orb";
 import { mountStatusLabel } from "./status-label";
 import { mountMetalRing } from "./metal-ring";
 import { setAnimPaused } from "./anim-gate";
-import { generateResourcesHTML, generateSystemsHTML } from "./dashboard-hud";
 
 const DEFAULT_FETCH_TIMEOUT_MS = 15000;
 const UPLOAD_FETCH_TIMEOUT_MS = 120000;
@@ -935,248 +934,9 @@ function showError(msg: string) {
 
 
 
-// ---------------------------------------------------------------------------
-// Status Dashboard Logic
-// ---------------------------------------------------------------------------
-
-const statusDashboard = document.getElementById("status-dashboard")!;
-
-let hudContent: HTMLElement;
-// System status state
+// System status state for chat flow
 let flowSteps: any[] = [];
 let currentTurnId: string = Date.now().toString();
-
-
-
-// Toggleable list states for Status Dashboard
-let isMcpExpanded = false;
-let isAgentsExpanded = false;
-
-async function refreshDashboard() {
-  try {
-    const res = await fetchWithTimeout("/api/settings/status");
-    const data = await res.json();
-    const tokens = data.session_tokens || { input: 0, output: 0, total: 0 };
-
-    const sys = data.system || {};
-    const mcpServers = data.mcp_servers || {};
-    const agents = data.agents || [];
-    const mcpOnline = (s: string) => s === "connected" ? "active" : s === "reconnecting" ? "warn" : "error";
-    const badgeCls = data.mcp_total > 0 && data.mcp_connected === data.mcp_total ? "active" : data.mcp_connected > 0 ? "warn" : "error";
-
-    // Initialize HUD on first call
-    const isFirstLoad = !hudContent;
-    if (isFirstLoad) {
-      hudContent = statusDashboard.querySelector(".hud-content") as HTMLElement;
-
-      // Event delegation for toggleable panels and reset button
-      hudContent.addEventListener("click", async (e) => {
-        const target = e.target as HTMLElement;
-
-        // Handle reset button click
-        if (target.classList.contains("hud-btn-reset") || target.closest(".hud-btn-reset")) {
-          e.stopPropagation();
-          const btn = target.classList.contains("hud-btn-reset") ? target : target.closest(".hud-btn-reset") as HTMLElement;
-          btn.style.opacity = "0.5";
-          btn.style.pointerEvents = "none";
-          try {
-            const resetRes = await fetchWithTimeout("/api/settings/reset-tokens", { method: "POST" });
-            if (resetRes.ok) {
-              console.log("[Dashboard] Tokens reset successfully");
-              flowSteps = [];
-              // Trigger update immediately
-              await refreshDashboard();
-            }
-          } catch (err) {
-            console.error("[Dashboard] Failed to reset tokens:", err);
-          } finally {
-            btn.style.opacity = "";
-            btn.style.pointerEvents = "";
-          }
-          return;
-        }
-
-        const header = target.closest(".hud-toggleable-header");
-        if (header) {
-          const type = header.getAttribute("data-toggle");
-          const contentId = header.getAttribute("aria-controls");
-          if (contentId) {
-            const contentEl = hudContent.querySelector(`#${contentId}`) as HTMLElement;
-            if (contentEl) {
-              const isOpen = contentEl.classList.toggle("open");
-              header.classList.toggle("open", isOpen);
-              if (type === "mcp") {
-                isMcpExpanded = isOpen;
-              } else if (type === "agents") {
-                isAgentsExpanded = isOpen;
-              }
-            }
-          }
-        }
-      });
-    }
-
-    const ramPct = sys.ram_percent ?? 0;
-    const cpuPct = sys.cpu_percent ?? 0;
-
-
-
-    let gpuHtml = "";
-    const gpus = sys.gpus || [];
-    const npus = sys.npus || [];
-
-    for (const gpu of gpus) {
-      const vramTotal = gpu.mem_total_mb || gpu.vram_total_mb || 0;
-      const vramUsed = gpu.mem_used_mb || 0;
-      const memLabel = vramUsed && vramTotal ? `${vramUsed}/${vramTotal}MB` : vramTotal ? `${vramTotal}MB` : "";
-
-      const shortName = gpu.name?.replace(/^(GeForce|Laptop)\s*/i, "").split(" ").slice(0, 4).join(" ") || "GPU";
-      gpuHtml += `
-        <div class="hud-row" style="margin-top: 4px;">
-          <span title="${gpu.name}">${shortName}</span>
-          <span class="hud-val">${memLabel}</span>
-        </div>`;
-    }
-
-    for (const npu of npus) {
-      const shortNpu = npu.replace(/\(R\)|\(TM\)/g, "").split(" ").slice(0, 4).join(" ");
-      gpuHtml += `<div class="hud-row"><span title="${npu}" style="opacity:0.7">NPU</span><span class="hud-val" style="opacity:0.5">${shortNpu}</span></div>`;
-    }
-
-    if (!hudContent.querySelector("#hud-resources")) {
-      hudContent.innerHTML = `
-        <div class="hud-group compact">
-          ${generateSystemsHTML(data.intelligence_core_ok, data.server_engine_ok, data.llm_server_ok, data.tts_server_ok)}
-          
-          <div class="hud-label hud-toggleable-header ${isMcpExpanded ? 'open' : ''}" style="margin-top:4px" data-toggle="mcp" aria-controls="mcp-list-content">
-            <span>MCP Connect · <span class="hud-badge ${badgeCls}" id="hud-mcp-badge">${data.mcp_connected ?? 0}/${data.mcp_total ?? 0}</span></span>
-            <span class="hud-arrow-icon">&#9654;</span>
-          </div>
-          <div class="hud-scroll hud-toggleable-content ${isMcpExpanded ? 'open' : ''}" id="mcp-list-content">${Object.entries(mcpServers).map(([name, status]) => {
-        const cls = mcpOnline(status as string);
-        return `<div class="hud-row"><span>${name}</span><div class="hud-dot ${cls}"></div></div>`;
-      }).join("")}</div>
-
-          <div class="hud-label hud-toggleable-header ${isAgentsExpanded ? 'open' : ''}" style="margin-top:4px" data-toggle="agents" aria-controls="agents-list-content">
-            <span>Cognitive Agents · <span class="hud-badge active" id="hud-agents-badge">${agents.length}</span></span>
-            <span class="hud-arrow-icon">&#9654;</span>
-          </div>
-          <div class="hud-scroll hud-toggleable-content ${isAgentsExpanded ? 'open' : ''}" id="agents-list-content">${agents.map((a: any) => `
-            <div class="hud-row" style="display: flex; justify-content: space-between; align-items: center;">
-              <span>${a.name.startsWith('Agent') ? a.name : `Agent ${a.name}`}</span>
-              ${a.name === "Goose" || a.name === "Agent Goose" ? `
-                <button class="hud-btn-launch-goose" onclick="fetch('/api/agents/goose/launch', {method: 'POST'})" style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.3); color: #0ea5e9; border-radius: 4px; padding: 2px 6px; font-size: 10px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(14, 165, 233, 0.3)'; this.style.color='#38bdf8';" onmouseout="this.style.background='rgba(14, 165, 233, 0.15)'; this.style.color='#0ea5e9';">Mở App</button>
-              ` : `
-                <span class="hud-val" style="opacity: 0.6; font-size: 10px;">${a.file}</span>
-              `}
-            </div>
-          `).join("")}</div>
-        </div>
-
-        <div class="hud-group compact" id="hud-resources">
-          ${generateResourcesHTML(cpuPct, ramPct, sys.ram_used_gb ?? "?", sys.ram_total_gb ?? "?", gpuHtml)}
-        </div>
-
-        <div class="hud-group compact">
-          <div class="hud-label">Cognition</div>
-          <div class="hud-row">
-            <span>Sessions · Memory · Tasks</span>
-            <span class="hud-val" id="hud-cognition-memories">${data.session_active ? '●' : '○'} ${data.memory_count} · ${data.task_count}</span>
-          </div>
-          <div class="hud-row">
-            <span>Semantic · Conversations</span>
-            <span class="hud-val" id="hud-cognition-semantic">${data.semantic_memory_count ?? 0} · ${data.conversation_turn_count ?? 0}</span>
-          </div>
-        </div>
-
-        <div class="hud-group compact">
-          <div class="hud-label" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>Cognitive Tokens</span>
-            <button class="hud-btn-reset" title="Reset Token Usage" style="background:transparent; border:none; color:#0ea5e9; cursor:pointer; padding:4px; display:inline-flex; align-items:center; justify-content:center; border-radius:4px; border:1px solid rgba(14, 165, 233, 0.15); transition:all 0.2s;" onmouseover="this.style.borderColor='rgba(14, 165, 233, 0.4)'; this.style.color='#38bdf8';" onmouseout="this.style.borderColor='rgba(14, 165, 233, 0.15)'; this.style.color='#0ea5e9';">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-              </svg>
-            </button>
-          </div>
-          <div class="hud-row"><span>Input Tokens</span><span class="hud-val" id="hud-tokens-input">${tokens.input.toLocaleString()}</span></div>
-          <div class="hud-row"><span>Output Tokens</span><span class="hud-val" id="hud-tokens-output">${tokens.output.toLocaleString()}</span></div>
-          <div class="hud-row"><span class="highlight">Total Tokens</span><span class="hud-val highlight" id="hud-tokens-total">${tokens.total.toLocaleString()}</span></div>
-        </div>
-
-        <div class="hud-group compact">
-          <div class="hud-label">Modules · ${data.skill_count ?? 0} skills · ${data.command_count ?? 0} commands</div>
-          <div class="hud-row">
-            <span>Hooks · Plugins</span>
-            <span class="hud-val highlight">${data.hooks_loaded ?? 0} · ${data.plugins_loaded ?? 0}</span>
-          </div>
-          <div class="hud-row"><span>Uptime</span><span class="hud-val" id="hud-uptime">${formatUptime(data.uptime_seconds)}</span></div>
-        </div>
-      `;
-      if (isFirstLoad) statusDashboard.classList.add("loaded");
-    } else {
-      const resourcesEl = hudContent.querySelector("#hud-resources");
-      if (resourcesEl) {
-        resourcesEl.innerHTML = generateResourcesHTML(cpuPct, ramPct, sys.ram_used_gb ?? "?", sys.ram_total_gb ?? "?", gpuHtml);
-      }
-      const tokensInput = document.getElementById("hud-tokens-input");
-      const tokensOutput = document.getElementById("hud-tokens-output");
-      const tokensTotal = document.getElementById("hud-tokens-total");
-      if (tokensInput) tokensInput.textContent = tokens.input.toLocaleString();
-      if (tokensOutput) tokensOutput.textContent = tokens.output.toLocaleString();
-      if (tokensTotal) tokensTotal.textContent = tokens.total.toLocaleString();
-
-      // Cập nhật động phần Cognition, Uptime và MCP
-      const cogMemories = document.getElementById("hud-cognition-memories");
-      const cogSemantic = document.getElementById("hud-cognition-semantic");
-      if (cogMemories) {
-        cogMemories.textContent = `${data.session_active ? '●' : '○'} ${data.memory_count} · ${data.task_count}`;
-      }
-      if (cogSemantic) {
-        cogSemantic.textContent = `${data.semantic_memory_count ?? 0} · ${data.conversation_turn_count ?? 0}`;
-      }
-
-      const hudUptime = document.getElementById("hud-uptime");
-      if (hudUptime) {
-        hudUptime.textContent = formatUptime(data.uptime_seconds);
-      }
-
-      const mcpBadge = document.getElementById("hud-mcp-badge");
-      if (mcpBadge) {
-        mcpBadge.className = `hud-badge ${badgeCls}`;
-        mcpBadge.textContent = `${data.mcp_connected ?? 0}/${data.mcp_total ?? 0}`;
-      }
-
-      const mcpListContent = document.getElementById("mcp-list-content");
-      if (mcpListContent) {
-        mcpListContent.innerHTML = Object.entries(mcpServers).map(([name, status]) => {
-          const cls = mcpOnline(status as string);
-          return `<div class="hud-row"><span>${name}</span><div class="hud-dot ${cls}"></div></div>`;
-        }).join("");
-      }
-
-      const agentsBadge = document.getElementById("hud-agents-badge");
-      if (agentsBadge) {
-        agentsBadge.textContent = agents.length.toString();
-      }
-      const agentsListContent = document.getElementById("agents-list-content");
-      if (agentsListContent) {
-        agentsListContent.innerHTML = agents.map((a: any) => `
-          <div class="hud-row" style="display: flex; justify-content: space-between; align-items: center;">
-            <span>${a.name.startsWith('Agent') ? a.name : `Agent ${a.name}`}</span>
-            ${a.name === "Goose" || a.name === "Agent Goose" ? `
-              <button class="hud-btn-launch-goose" onclick="fetch('/api/agents/goose/launch', {method: 'POST'})" style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.3); color: #0ea5e9; border-radius: 4px; padding: 2px 6px; font-size: 10px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(14, 165, 233, 0.3)'; this.style.color='#38bdf8';" onmouseout="this.style.background='rgba(14, 165, 233, 0.15)'; this.style.color='#0ea5e9';">Mở App</button>
-            ` : `
-              <span class="hud-val" style="opacity: 0.6; font-size: 10px;">${a.file}</span>
-            `}
-          </div>
-        `).join("");
-      }
-    }
-
-  } catch (e) {
-    console.error("[Dashboard] Refresh failed:", e);
-  }
-}
 
 /** "Định tuyến → general" → ["Định tuyến", "general"]; drops trailing "..." / "…". */
 function splitStepLabel(label: string): [string, string] {
@@ -1255,17 +1015,7 @@ function updateFlowMonitor() {
   });
 }
 
-function formatUptime(seconds: number): string {
-  if (seconds < 60) return `${Math.floor(seconds)}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  return `${h}h ${m}m`;
-}
 
-// Nạp snapshot HUD một lần khi WebUI khởi động.
-// Các chỉ số động được làm mới theo sự kiện hoàn tất phiên chat.
-void refreshDashboard();
 
 // ---------------------------------------------------------------------------
 // Webcam HUD Logic
@@ -1631,17 +1381,14 @@ socket.onSuperseded((reason) => {
 const audioPlayer = createAudioPlayer();
 orb.setAnalyser(audioPlayer.getAnalyser());
 
+// What the last call showed: transition(), the mic button and the mic's own state change all call updateStatus for one press, so a call that
+// would change nothing (same state, text, listening and busy flags) is skipped instead of repeating the work and the log line.
+let lastStatusKey = "";
+
 function updateStatus(state: State, message?: string) {
   // Determine if we should show "listening"
   const isCurrentlyListening = voiceInput.isListening();
   const canListen = isCurrentlyListening && document.activeElement !== commandInput;
-
-  console.log(`[UI] updateStatus: state=${state}, message=${message}, canListen=${canListen}, isBusy=${isBusy}`);
-
-  // Track the type of work for the "speaking" state fallback
-  if (state === "thinking" || state === "working") {
-    lastWorkState = state;
-  }
 
   const labels: Record<State, string> = {
     idle: canListen ? "Đang nghe…" : "Sẵn sàng",
@@ -1653,6 +1400,17 @@ function updateStatus(state: State, message?: string) {
   };
 
   const newText = message || labels[state];
+  const key = `${state}|${message ?? ""}|${canListen}|${isBusy}`;
+  if (key === lastStatusKey && statusEl.textContent === newText) return;
+  lastStatusKey = key;
+
+  console.log(`[UI] updateStatus: state=${state}, message=${message}, canListen=${canListen}, isBusy=${isBusy}`);
+
+  // Track the type of work for the "speaking" state fallback
+  if (state === "thinking" || state === "working") {
+    lastWorkState = state;
+  }
+
   if (statusEl.textContent !== newText) {
     statusEl.textContent = newText;
   }
@@ -1749,6 +1507,11 @@ const voiceInput = createVoiceInput(
   },
   (msg: string) => {
     showError(msg);
+  },
+  () => {
+    // the recognizer ended 6 times in a row without hearing anything: the mic is stopped, switch its button off too
+    showError("Mic không nghe được gì nên đã tắt. Bấm nút mic để bật lại.");
+    if (!isMuted) btnMute.click();
   }
 );
 
@@ -1853,7 +1616,6 @@ socket.onMessage((msg) => {
     activeAssistantText = "";
     flowSteps = [];
     currentTurnId = Date.now().toString();
-    refreshDashboard();
 
     // Mark existing messages as 'old'
     const oldBubbles = chatHistory.querySelectorAll(".chat-bubble");
@@ -1960,7 +1722,6 @@ socket.onMessage((msg) => {
       if (!audioPlayer.isPlaying() && !isSpeaking) {
         transition("idle");
       }
-      void refreshDashboard();
     } else if (state === "speaking") {
       if (currentState !== "speaking") {
         transition("speaking", message);
@@ -2031,10 +1792,7 @@ socket.onMessage((msg) => {
       } else {
         flowSteps.push(step);
       }
-      // Flow steps only drive the chat bubble. This used to go through
-      // refreshDashboard(), so every step of every turn fired a heavy
-      // /api/settings/status round-trip (psutil + GPU + MCP listing) at exactly
-      // the moment latency matters most.
+      // Flow steps drive the inline chat system flow bubble
       updateFlowMonitor();
     }
 
@@ -2049,7 +1807,7 @@ socket.onMessage((msg) => {
       cachedPins.forEach(pin => addPinToMap(pin));
     }
   } else if (type === "memory_updated") {
-    refreshDashboard();
+    console.log("[UI] Memory updated");
   }
 });
 
@@ -2087,44 +1845,15 @@ setTimeout(() => {
     transition("idle");
   }
 
-  // Hide HUD by default on mobile, but keep Command Bar visible
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
-
-  if (isMobile) {
-    statusDashboard.classList.add("hidden");
-    btnHud.classList.remove("active");
-  } else {
-    // Show by default on PC
-    statusDashboard.classList.remove("hidden");
-    btnHud.classList.add("active");
-  }
-
   toggleCommandBar(true); // Always show command bar by default
   updateScrollFade(); // Initial check
-  // Load dashboard data after dashboard is revealed (loading skeleton visible first)
-  refreshDashboard();
 }, 1000);
 
 
 
-// Resume AudioContext on ANY user interaction (browser autoplay policy)
-// Browsers only let audio start after a gesture, so it is unlocked from the first tap/click/key, once. Nothing
-// is resumed at load (that was the "AudioContext was not allowed to start" warning), and after unlocking the
-// player keeps its context suspended until something plays.
-const UNLOCK_EVENTS = ["click", "touchstart", "keydown"] as const;
-let unlockingAudio = false;
-function unlockAudio() {
-  if (unlockingAudio) return;
-  unlockingAudio = true;
-  audioPlayer.unlock()
-    .then(() => {
-      console.log("[audio] context resumed");
-      for (const ev of UNLOCK_EVENTS) document.removeEventListener(ev, unlockAudio);
-    })
-    .catch(() => { /* not allowed yet: stay armed for the next gesture */ })
-    .finally(() => { unlockingAudio = false; });
-}
-for (const ev of UNLOCK_EVENTS) document.addEventListener(ev, unlockAudio);
+// The audio context is started when it is needed, not on the first tap anywhere: sending the first chat message and pressing the mic
+// button (both user gestures, which iOS needs) call audioPlayer.unlock(), and the player starts it itself when TTS is about to be read.
+// A context that is already running is skipped.
 if (new URLSearchParams(location.search).has("debug")) {
   void import("./perf-debug").then((m) => m.mountPerfDebug(audioPlayer.getAnalyser().context as AudioContext));
 }
@@ -2141,11 +1870,12 @@ const btnRestart = document.getElementById("btn-restart")!;
 
 btnMute.addEventListener("click", (e) => {
   e.stopPropagation();
+  void audioPlayer.unlock(); // pressing the mic is a user gesture too (someone who only talks never sends a chat)
   isMuted = !isMuted;
   btnMute.classList.toggle("muted", isMuted);
   btnMute.classList.toggle("active", !isMuted);
   if (isMuted) {
-    voiceInput.pause();
+    voiceInput.stop(); // the user switched the mic off (not a pause: the audio player may suspend now)
     interruptDetector.stop();
     if (currentState === "listening" || currentState === "idle") {
       transition("idle");
@@ -2178,12 +1908,6 @@ btnTtsToggle.addEventListener("click", (e) => {
   console.log("[TTS] Toggled TTS. Disabled:", isTtsDisabled);
 });
 
-const btnHud = document.getElementById("btn-hud")!;
-btnHud.addEventListener("click", (e) => {
-  e.stopPropagation();
-  statusDashboard.classList.toggle("hidden");
-  btnHud.classList.toggle("active", !statusDashboard.classList.contains("hidden"));
-});
 
 btnMenu.addEventListener("click", (e) => {
   e.stopPropagation();
@@ -2423,6 +2147,7 @@ async function sendCommand() {
   dismissKeyboardOnMobile();
   const text = commandInput.value.trim();
   if (!text && !pendingFile) return;
+  void audioPlayer.unlock(); // the first chat is a user gesture: start the audio context now so the TTS reply can play (skipped when running)
 
   // Clear input immediately for responsiveness
   commandInput.value = "";

@@ -40,6 +40,52 @@ _evolution_lock = asyncio.Lock()
 _last_inputs: tuple[str, str] | None = None
 
 
+# ---- Settings → Bộ nhớ → Evolution: đọc và sửa tay hai file tiến hóa ngay trong giao diện ----
+EVOLUTION_FILES = (
+    ("style", "STYLE.md — luật giọng điệu đang áp dụng"),
+    ("log", "Evolution.md — nhật ký luật tiến hóa (Routing chỉ là đề xuất chờ duyệt)"),
+)
+STYLE_MAX_CHARS = 4000  # STYLE.md vào system prompt mỗi lượt chat: người sửa tay cũng không được làm nó phình vô hạn
+
+
+def _evolution_path(file_id: str) -> Path | None:
+    # đọc STYLE_FILE/EVOLUTION_LOG lúc gọi (không cache) để test và cấu hình đổi được
+    return {"style": STYLE_FILE, "log": EVOLUTION_LOG}.get(file_id)
+
+
+def list_evolution_files() -> list[dict]:
+    items = []
+    for file_id, title in EVOLUTION_FILES:
+        path = _evolution_path(file_id)
+        exists = path.exists()
+        try:
+            rel = str(path.relative_to(PROJECT_ROOT)).replace(os.sep, "/")
+        except ValueError:
+            rel = str(path)
+        items.append({
+            "id": file_id, "title": title, "path": rel, "exists": exists, "editable": True,
+            "content": path.read_text(encoding="utf-8") if exists else "",
+            "updated_at": int(path.stat().st_mtime) if exists else None,
+        })
+    return items
+
+
+async def save_evolution_file(file_id: str, content: str) -> dict:
+    """Ghi tay một file tiến hóa. Không chờ vòng tiến hóa đang chạy (nó giữ khoá cả phút vì gọi LLM): báo bận để người dùng thử lại."""
+    path = _evolution_path(file_id)
+    if path is None:
+        return {"success": False, "code": "unknown_id", "error": "Không có file tiến hóa này."}
+    if file_id == "style" and len(content) > STYLE_MAX_CHARS:
+        return {"success": False, "code": "too_long",
+                "error": f"STYLE.md dài {len(content)} ký tự, tối đa {STYLE_MAX_CHARS} (nó được nạp vào prompt mỗi lượt chat)."}
+    if _evolution_lock.locked():
+        return {"success": False, "code": "evolution_running", "error": "Đang có một vòng tiến hóa chạy, thử lại sau ít phút."}
+    async with _evolution_lock:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _write_text_atomic(path, content)
+    return {"success": True}
+
+
 def _write_text_atomic(path: Path, content: str) -> None:
     """Write `content` to `path` atomically (temp file + os.replace).
 

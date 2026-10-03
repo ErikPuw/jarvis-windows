@@ -9,11 +9,11 @@
 import { defineMorphIcon, type MorphIconElement } from "morphicons/element";
 import {
   Video, VideoOff, Mic, MicOff, Volume2, VolumeX, SquareTerminal, X,
-  PanelRight, PanelRightClose, History, MapPin, EllipsisVertical, Plus, ChevronDown,
+  History, MapPin, EllipsisVertical, Plus, ChevronDown,
   Paperclip, Send, LoaderCircle, Check, CircleDashed,
   Save, PlugZap, Upload, Trash2, RefreshCw, type IconNode,
-  AppWindow, Monitor, Moon, Mail, Bird, Image, Music, NotebookPen, FolderOpen,
-  Wrench, FileText, Search, Shield, Eye, Camera, Bot, Slash, AtSign,
+  AppWindow, Monitor, Moon, Mail, Bird, Image, Scale, Music, NotebookPen, FolderOpen,
+  Wrench, FileText, Search, Shield, Ticket, Eye, Camera, Bot, Slash, AtSign,
 } from "lucide";
 
 defineMorphIcon();
@@ -36,7 +36,6 @@ const SPECS: Spec[] = [
   { btn: "btn-mute", on: cls("muted"), off: Mic, onIcon: MicOff, size: 18 },
   { btn: "btn-tts-toggle", on: cls("muted"), off: Volume2, onIcon: VolumeX, size: 18 },
   { btn: "btn-cmd-bar", on: cls("active"), off: SquareTerminal, onIcon: ChevronDown, size: 18 },
-  { btn: "btn-hud", on: cls("active"), off: PanelRight, onIcon: PanelRightClose, size: 18 },
   { btn: "btn-history", on: cls("active"), off: History, onIcon: X, size: 18 },
   { btn: "btn-map", on: cls("active"), off: MapPin, onIcon: X, size: 18 },
   { btn: "btn-menu", watch: "menu-dropdown", on: shown, off: EllipsisVertical, onIcon: X, size: 18 },
@@ -171,9 +170,9 @@ export async function runAction(
 // Keyed by the name after "Agent "; an agent missing here still renders, with Bot.
 const AGENT_ICON: Record<string, IconNode> = {
   control: AppWindow, desktop: Monitor, dream: Moon, email: Mail, goose: Bird,
-  history: History, image: Image, media: Music, notes: NotebookPen,
+  history: History, image: Image, legal: Scale, media: Music, notes: NotebookPen,
   office: FolderOpen, project: Wrench, rag: FileText, search: Search, security: Shield,
-  vision: Eye, webcam: Camera,
+  vietlott: Ticket, vision: Eye, webcam: Camera,
 };
 
 /** "💻 Agent Desktop" → { name: "Agent Desktop", icon }. */

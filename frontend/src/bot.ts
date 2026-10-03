@@ -3,13 +3,17 @@
 // used to sit in every chat bubble, so the whole page has exactly one animated character.
 // It has its own behaviour for each JARVIS state ("jarvis:mascot" event), see PROFILE:
 //   idle      awake, looks around (left/right/up/down) for DOZE_MS, then sleeps
-//   listening awake and attentive (looks down at the input) for DOZE_MS, then sleeps
-//   thinking  awake, looks up as if pondering, calm (no hops), never sleeps
-//   working   the library's busy state (hops)         speaking  awake, with a mouth
+//   listening awake, looks straight out at the speaker for DOZE_MS, then sleeps; nods when speech is heard ("jarvis:heard")
+//   typing    (idle/listening while the user types in #command-input) looks down at the box: down-left, down, down-right
+//   thinking  awake, watches the chat with three dots rising over its head, calm (no hops), never sleeps
+//   working   the library's busy state (hops)
+//   speaking  awake, watches the chat with a mouth that opens and shuts (bot-mouth.ts), calm, never sleeps
 // idle <-> listening only swap the look script; the DOZE_MS clock keeps running. The clock measures time
 // since the last activity (pointer near the bot, a tap/click or a key anywhere): activity wakes a sleeping
 // bot back to idle (looks around) and restarts the 30 s, so it does not stay asleep for good.
+// The pointer only steers the head; hopping is for a click on the bot (and a nod), never for a pointer nearby.
 import { gatedLoop } from "./anim-gate";
+import { createTalk, drawMouth, drawThinkDots } from "./bot-mouth";
 import {
   BotAvatarSim, drawBotAvatarFrame, botAvatarShapes, botAvatarPresets, autoInk,
   BOT_AVATAR_OVERSCAN, botAvatarJumpDefaults, type BotAvatarState, type BotAvatarFace,
@@ -34,11 +38,9 @@ const cfg = {
   dpr,
 };
 
-// Pointer play, as on libraries.dev/bots: the head follows a pointer within a few head widths, close by
-// it hops with joy every so often, a click hops twice, higher.
+// Pointer play: the head follows a pointer within a few head widths; a click on the bot hops twice.
 const FOLLOW_PX = BOX * 5;
-const NEAR_PX = BOX * 1.7;
-const HOP_EVERY_MS = 1500;
+const NOD_EVERY_MS = 1500; // at most one nod per this while speech keeps coming in
 const DOZE_MS = 30_000; // awake this long after going idle / listening, then it sleeps
 
 // gaze targets in head-widths from the head's centre (-1..1); x right, y down
@@ -47,21 +49,24 @@ const LOOK_AROUND: Look[] = [
   { name: "left", x: -1, y: 0 }, { name: "right", x: 1, y: 0 }, { name: "up", x: 0, y: -1 }, { name: "down", x: 0, y: 1 },
   { name: "left", x: -1, y: -0.6 }, { name: "right", x: 1, y: 0.6 }, { name: "center", x: 0, y: 0 },
 ];
-const ATTENTIVE: Look[] = [
-  { name: "down", x: 0, y: 0.8 }, { name: "down-left", x: -0.5, y: 0.7 }, { name: "down", x: 0, y: 0.8 }, { name: "down-right", x: 0.5, y: 0.7 },
+const FRONT: Look[] = [
+  { name: "front", x: 0, y: 0.05 }, { name: "front-left", x: -0.25, y: 0.1 }, { name: "front", x: 0, y: 0.05 }, { name: "front-right", x: 0.25, y: 0.1 },
 ];
-const PONDER: Look[] = [
-  { name: "up-left", x: -0.7, y: -0.8 }, { name: "up", x: 0, y: -1 }, { name: "up-right", x: 0.7, y: -0.8 }, { name: "up", x: 0, y: -1 },
+const TYPING: Look[] = [
+  { name: "down-left", x: -0.5, y: 0.7 }, { name: "down", x: 0, y: 0.8 }, { name: "down-right", x: 0.5, y: 0.7 }, { name: "down", x: 0, y: 0.8 },
 ];
+const TYPING_EVERY_MS = 1500;
+const TYPING_MS = 3000; // typing counts until this long after the last keystroke
+const CHAT_GAZE = 0.85; // how far the head turns towards the chat, 1 = as far as the eyes go
 
-interface Profile { state: BotAvatarState; face?: BotAvatarFace; looks?: Look[]; everyMs?: number; doze?: boolean }
+interface Profile { state: BotAvatarState; face?: BotAvatarFace; looks?: Look[]; everyMs?: number; doze?: boolean; chat?: boolean; dots?: boolean }
 const PROFILE: Record<string, Profile> = {
   idle: { state: "default", looks: LOOK_AROUND, everyMs: 1300, doze: true },
-  listening: { state: "default", looks: ATTENTIVE, everyMs: 2000, doze: true },
-  thinking: { state: "default", looks: PONDER, everyMs: 1800 },
+  listening: { state: "default", looks: FRONT, everyMs: 2200, doze: true },
+  thinking: { state: "default", chat: true, dots: true },
   working: { state: "working" },
   restarting: { state: "working" },
-  speaking: { state: "default", face: "mouth" },
+  speaking: { state: "default", face: "mouth", chat: true },
 };
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -79,13 +84,21 @@ export function mountBot(parent: HTMLElement): void {
   parent.appendChild(host);
   const ctx = canvas.getContext("2d")!;
   const sim = new BotAvatarSim(Math.random(), "default");
+  sim.setJump({ spin: 0 }); // hops are light bounces, never a full turn
 
   let ptr: { x: number; y: number } | null = null;
   let gaze: Look | null = null; // current look-around target
-  let face: BotAvatarFace = preset.face;
+  let talking = false; // speaking: the bot draws its own mouth (the library's cannot open and shut)
+  let open = 0; // how wide that mouth is, 0 shut … 1 wide
+  const talk = createTalk();
   let cur: BotAvatarState = "default"; // the state the behaviour wants (the pointer can wake a sleeping bot)
-  let lastHop = 0;
   let hops = 0;
+  let nods = 0;
+  let lastNod = -NOD_EVERY_MS;
+  let dots = false; // thinking: three dots over the head
+  let typing = false; // the user is typing in the command box
+  let typingTimer = 0;
+  let lastNow = performance.now();
   let doze = 0; // pending "go to sleep" timer; 0 = not winding down
   let lastActive = performance.now();
   let sys = "idle"; // the last JARVIS state seen, so a waking bot behaves like that state
@@ -96,16 +109,18 @@ export function mountBot(parent: HTMLElement): void {
   function paint(): void {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawBotAvatarFrame(ctx, BOX, sim.pose, { ...cfg, face, still: reduced });
+    drawBotAvatarFrame(ctx, BOX, sim.pose, { ...cfg, still: reduced });
+    if (talking) drawMouth(ctx, sim.pose, BOX, dpr, cfg, open);
+    if (dots) drawThinkDots(ctx, BOX, dpr, lastNow);
   }
 
   function hop(): void {
-    sim.poke(); // a hop and a full turn
+    sim.poke(); // a hop (no turn, see spin above)
     host.dataset.hops = String(++hops);
   }
 
-  /** Aims the gaze at the pointer and hops when it is right next to it. */
-  function pointerPlay(now: number): void {
+  /** Aims the gaze at the pointer when it is near. */
+  function pointerPlay(): void {
     let following = false;
     if (ptr) {
       const r = host.getBoundingClientRect();
@@ -115,7 +130,6 @@ export function mountBot(parent: HTMLElement): void {
       if (following) sim.setPointer(clamp(dx / (BOX * 2), -1, 1), clamp(dy / (BOX * 2), -1, 1), 1);
       host.dataset.follow = following ? "1" : "0";
       if (following) activity();
-      if (d <= NEAR_PX && now - lastHop > HOP_EVERY_MS) { lastHop = now; hop(); }
     } else {
       host.dataset.follow = "0";
     }
@@ -123,17 +137,24 @@ export function mountBot(parent: HTMLElement): void {
     if (!following) { if (gaze) sim.setPointer(gaze.x, gaze.y, 1); else sim.setPointer(0, 0, 0); }
   }
 
-  /** Click: two hops, higher and with two turns, then the stock jump numbers come back. */
-  function excite(): void {
-    sim.setJump({ height: botAvatarJumpDefaults.height * 1.5, spin: 2 });
+  /** `times` hops, `height` x the stock height, then the stock height comes back. */
+  function jump(height: number, times: number): void {
+    sim.setJump({ height: botAvatarJumpDefaults.height * height });
     hop();
-    setTimeout(hop, 420);
-    setTimeout(() => sim.setJump({ height: botAvatarJumpDefaults.height, spin: botAvatarJumpDefaults.spin }), 1400);
+    for (let i = 1; i < times; i++) setTimeout(hop, i * 420);
+    setTimeout(() => sim.setJump({ height: botAvatarJumpDefaults.height }), times * 420 + 500);
   }
+  /** Click: two happy hops. */
+  const excite = () => jump(1.2, 2);
 
-  function apply(state: BotAvatarState, f: BotAvatarFace = preset.face): void {
+  function apply(state: BotAvatarState, f: BotAvatarFace = preset.face, thinking = false): void {
     cur = state;
-    face = f;
+    dots = thinking;
+    if (thinking) host.dataset.dots = "1"; else delete host.dataset.dots;
+    if (reduced) lastNow = 1500; // a still frame shows all three dots
+    talking = f === "mouth";
+    if (!talking) delete host.dataset.mouth;
+    if (reduced) open = talking ? 0.45 : 0; // a still frame: mouth half open
     host.dataset.state = state;
     host.dataset.face = f;
     host.dataset.awake = "0";
@@ -152,13 +173,43 @@ export function mountBot(parent: HTMLElement): void {
     host.dataset.idlejumps = on ? "on" : "off";
   }
 
+  /** The look script of a resting state (idle/listening): down at the command box while the user types, else the state's own. */
+  function restLooks(p: Profile): void {
+    if (typing) setLooks(TYPING, TYPING_EVERY_MS);
+    else setLooks(p.looks!, p.everyMs!);
+  }
+
   function setLooks(list: Look[], everyMs: number): void {
     clearInterval(look);
+    delete host.dataset.gaze; // only the chat watch sets it
     looks = list;
     lookIdx = 0;
     lookAt(0);
     idleJumps(false);
     look = window.setInterval(() => lookAt(++lookIdx), everyMs);
+  }
+
+  /** Where the latest assistant bubble is, as a unit direction from the bot (up and left if there is none yet). */
+  function chatLook(): Look {
+    const r = host.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const bubbles = document.querySelectorAll<HTMLElement>("#chat-history .chat-bubble.assistant"), b = bubbles[bubbles.length - 1];
+    let dx = -1, dy = -1;
+    if (b) { const q = b.getBoundingClientRect(); dx = (q.left + q.right) / 2 - cx; dy = (q.top + q.bottom) / 2 - cy; }
+    const d = Math.hypot(dx, dy) || 1;
+    return { name: "chat", x: (dx / d) * CHAT_GAZE, y: (dy / d) * CHAT_GAZE };
+  }
+
+  /** Watches the chat: re-aims twice a second, so a bubble that grows or is scrolled away is followed. */
+  function watchChat(): void {
+    clearInterval(look);
+    idleJumps(false);
+    const aim = () => {
+      gaze = chatLook();
+      host.dataset.look = "chat";
+      host.dataset.gaze = `${gaze.x.toFixed(2)},${gaze.y.toFixed(2)}`;
+    };
+    aim();
+    look = window.setInterval(aim, 500);
   }
 
   function stopBehavior(): void {
@@ -168,6 +219,7 @@ export function mountBot(parent: HTMLElement): void {
     gaze = null;
     delete host.dataset.grace;
     delete host.dataset.look;
+    delete host.dataset.gaze;
     idleJumps(true);
   }
 
@@ -194,7 +246,7 @@ export function mountBot(parent: HTMLElement): void {
     if (!p?.doze) return;
     startDoze();
     apply("default", p.face);
-    setLooks(p.looks!, p.everyMs!);
+    restLooks(p);
   }
 
   window.addEventListener("jarvis:mascot", (e) => {
@@ -207,15 +259,41 @@ export function mountBot(parent: HTMLElement): void {
       if (cur === "sleeping" && !doze) return; // asleep: quiet states do not wake it
       if (!doze) startDoze(); // calming down from busy: DOZE_MS starts now (idle <-> listening keeps the clock)
       apply("default", p.face);
-      setLooks(p.looks!, p.everyMs!);
+      restLooks(p);
       return;
     }
     stopBehavior();
-    apply(p.state, p.face);
-    if (p.looks) setLooks(p.looks, p.everyMs!);
+    apply(p.state, p.face, p.dots);
+    if (p.chat) watchChat();
+    else if (p.looks) setLooks(p.looks, p.everyMs!);
   });
 
   if (!reduced) {
+    // typing in the command box: a resting bot looks down at it, and goes back to its own script 3 s after the last key
+    document.addEventListener("input", (e) => {
+      if ((e.target as HTMLElement | null)?.id !== "command-input") return;
+      const was = typing;
+      typing = true;
+      host.dataset.typing = "1";
+      clearTimeout(typingTimer);
+      typingTimer = window.setTimeout(() => {
+        typing = false;
+        delete host.dataset.typing;
+        const p = PROFILE[sys];
+        if (cur !== "sleeping" && p?.doze && doze) restLooks(p);
+      }, TYPING_MS);
+      const p = PROFILE[sys];
+      if (!was && cur !== "sleeping" && p?.doze && doze) restLooks(p);
+    }, true);
+    // speech recognition returned something: the speaker is talking, so a listening bot nods now and then
+    window.addEventListener("jarvis:heard", () => {
+      activity();
+      const now = performance.now();
+      if (sys !== "listening" || cur !== "default" || now - lastNod < NOD_EVERY_MS) return;
+      lastNod = now;
+      host.dataset.nods = String(++nods);
+      jump(0.45, 1);
+    });
     window.addEventListener("pointermove", (e) => { ptr = { x: e.clientX, y: e.clientY }; }, { passive: true });
     for (const ev of ["pointerdown", "keydown", "touchstart"]) window.addEventListener(ev, activity, { passive: true });
     const release = () => { ptr = null; };
@@ -228,5 +306,5 @@ export function mountBot(parent: HTMLElement): void {
   apply(reduced ? "sleeping" : "default");
   if (!reduced) { startDoze(); setLooks(LOOK_AROUND, PROFILE.idle.everyMs!); }
   paint();
-  if (!reduced) gatedLoop((now, dt) => { pointerPlay(now); sim.update(Math.min(dt / 1000, 0.05)); paint(); }, touch ? 1000 / 30 : 1000 / 60);
+  if (!reduced) gatedLoop((now, dt) => { lastNow = now; pointerPlay(); sim.update(Math.min(dt / 1000, 0.05)); if (talking) { open = talk(now, dt); const m = open.toFixed(1); if (host.dataset.mouth !== m) host.dataset.mouth = m; } paint(); }, touch ? 1000 / 30 : 1000 / 60);
 }

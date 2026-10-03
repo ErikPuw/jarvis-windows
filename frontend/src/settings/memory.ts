@@ -6,7 +6,7 @@ import { apiGet, apiPost } from "./api";
 import { decorateActionButton, makeIcon, runAction, type ActionKind } from "../icons";
 import type { MorphIconElement } from "morphicons/element";
 import {
-  Brain, Lightbulb,
+  Brain, Lightbulb, Dna, Sprout,
   Sparkles, Database,
   Workflow, RotateCw,
   Target, CheckCheck,
@@ -25,7 +25,8 @@ type MemoryCategoryId =
   | "workflow"
   | "outcome"
   | "conversation"
-  | "notes";
+  | "notes"
+  | "evolution";
 
 interface MemoryCategory {
   id: MemoryCategoryId;
@@ -52,6 +53,8 @@ const MEMORY_CATEGORIES: MemoryCategory[] = [
   { id: 'outcome', label: "Agent Outcomes", endpoint: "/api/outcomes/list", responseKey: "outcomes", color: "#f59e0b", icon: Target, activeIcon: CheckCheck },
   { id: 'conversation', label: "Conversations", endpoint: "/api/conversations", responseKey: "conversations", color: "#60a5fa", icon: MessageSquare, activeIcon: MessagesSquare },
   { id: 'notes', label: "Notes", endpoint: "/api/notes/list", responseKey: "notes", color: "#94a3b8", icon: FileText, activeIcon: FileCheck },
+  // Hai file tiến hóa (STYLE.md đang áp dụng, Evolution.md nhật ký): đọc và sửa tay ở đây, không có chỗ nào khác. Là file nên không xoá được.
+  { id: 'evolution', label: "Evolution", endpoint: "/api/evolution/list", responseKey: "items", color: "#34d399", icon: Dna, activeIcon: Sprout },
 ];
 
 const EDITABLE_MEMORY_FIELDS: Record<MemoryCategoryId, string[]> = {
@@ -61,6 +64,7 @@ const EDITABLE_MEMORY_FIELDS: Record<MemoryCategoryId, string[]> = {
   outcome: ["agent", "query", "status", "result", "traces"],
   conversation: ["role", "content", "session_id"],
   notes: ["title", "content", "tags"],
+  evolution: ["content"],
 };
 
 let activeMemoryKind: MemoryCategoryId = "learning";
@@ -287,11 +291,12 @@ function memoryItemPreview(item: MemoryItem): string {
 
 function renderMemoryField(field: string, value: unknown): string {
   const text = memoryValueText(value);
+  const rows = activeMemoryKind === "evolution" ? 16 : 4; // một file luật dài hơn một bản ghi
   const isLong = ["content", "result", "traces", "tool_chain", "argument_keys", "sample_queries", "success_evidence", "embedding"].includes(field);
   const isNumber = ["importance", "validation_count", "memory_id"].includes(field);
   const typeTag = isNumber ? "Số" : (isLong ? "Văn bản lớn" : "Chuỗi ký tự");
   const control = isLong
-    ? `<textarea data-memory-field="${field}" rows="4" class="sd-memory-input sd-memory-textarea" placeholder="Nhập ${escapeMemoryHtml(formatFieldLabel(field))}…">${escapeMemoryHtml(text)}</textarea>`
+    ? `<textarea data-memory-field="${field}" rows="${rows}" class="sd-memory-input sd-memory-textarea" placeholder="Nhập ${escapeMemoryHtml(formatFieldLabel(field))}…">${escapeMemoryHtml(text)}</textarea>`
     : `<input data-memory-field="${field}" type="${isNumber ? "number" : "text"}" value="${escapeMemoryHtml(text)}" class="sd-memory-input" placeholder="Nhập ${escapeMemoryHtml(formatFieldLabel(field))}…" />`;
   return `
     <div class="sd-mem-field-card">
@@ -361,7 +366,7 @@ function renderMemoryItems(): void {
         : "";
       return `
         <div role="button" tabindex="0" data-memory-record-id="${id}" class="sd-mem-record-card${selected ? " selected" : ""}" style="--item-color:${category.color};">
-          <input type="checkbox" data-memory-select="${id}" aria-label="Chọn bản ghi #${id}"${checked} class="sd-mem-card-check" />
+          ${activeMemoryKind === "evolution" ? "" : `<input type="checkbox" data-memory-select="${id}" aria-label="Chọn bản ghi #${id}"${checked} class="sd-mem-card-check" />`}
           <div class="sd-mem-card-body">
             <div class="sd-mem-card-header">
               <span class="sd-mem-card-title">${escapeMemoryHtml(memoryItemTitle(item))}</span>
@@ -376,7 +381,7 @@ function renderMemoryItems(): void {
     const item = selectedMemoryItem() || activeMemoryItems[0];
     selectedMemoryId = String(item.id);
     const fields = EDITABLE_MEMORY_FIELDS[activeMemoryKind];
-    const metadataEntries = Object.entries(item).filter(([key]) => !fields.includes(key));
+    const metadataEntries = Object.entries(item).filter(([key]) => !fields.includes(key) && key !== "editable");
     const metadataHtml = metadataEntries.length > 0 ? `
       <div class="sd-mem-meta-card">
         <div class="sd-mem-meta-title">Thông tin hệ thống</div>
@@ -400,12 +405,12 @@ function renderMemoryItems(): void {
               <span class="sd-mem-detail-badge-icon"></span>
               <span>${escapeMemoryHtml(category.label)}</span>
             </div>
-            <h3 class="sd-mem-detail-id">Bản ghi #${escapeMemoryHtml(item.id)}</h3>
+            <h3 class="sd-mem-detail-id">${activeMemoryKind === "evolution" ? escapeMemoryHtml(item.title) : `Bản ghi #${escapeMemoryHtml(item.id)}`}</h3>
           </div>
         </div>
-        <button class="settings-btn danger" id="memory-delete-btn" data-memory-action="delete" data-action="delete">
+        ${activeMemoryKind === "evolution" ? "" : `<button class="settings-btn danger" id="memory-delete-btn" data-memory-action="delete" data-action="delete">
           Xóa
-        </button>
+        </button>`}
       </div>
       <div class="sd-mem-detail-form">
         ${fields.map(field => renderMemoryField(field, item[field])).join("")}
@@ -436,7 +441,7 @@ function renderMemoryItems(): void {
   if (selectAll) {
     selectAll.checked = activeMemoryItems.length > 0 && bulkSelectedIds.size === activeMemoryItems.length;
     selectAll.indeterminate = bulkSelectedIds.size > 0 && !selectAll.checked;
-    selectAll.disabled = bulkDeleting || !activeMemoryItems.length;
+    selectAll.disabled = bulkDeleting || !activeMemoryItems.length || activeMemoryKind === "evolution";
   }
   const bulkButton = document.getElementById("memory-bulk-delete") as HTMLButtonElement | null;
   if (bulkButton) {
@@ -518,7 +523,9 @@ async function saveSelectedMemoryRecord(btn: HTMLButtonElement): Promise<void> {
   const ok = await runAction(btn, async () => {
     const result = activeMemoryKind === "notes"
       ? await apiPost<Record<string, unknown>>("/api/notes/update", { id: item.id, ...values })
-      : await apiPost<Record<string, unknown>>("/api/memory-control/update", { kind: activeMemoryKind, id: Number(item.id), values });
+      : activeMemoryKind === "evolution"
+        ? await apiPost<Record<string, unknown>>("/api/evolution/update", { id: String(item.id), content: values.content })
+        : await apiPost<Record<string, unknown>>("/api/memory-control/update", { kind: activeMemoryKind, id: Number(item.id), values });
     if (!result.success) throw new Error(`Không thể lưu bản ghi: ${String(result.error || result.code || "update_failed")}`);
   });
   if (ok) await loadMemoryList();

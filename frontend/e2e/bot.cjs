@@ -1,9 +1,10 @@
 // E2E: bot linh vật (thay mascot, nằm trên nút gửi) theo từng trạng thái hệ thống (idle, listening, thinking, working, speaking).
 //  idle      → tỉnh, nhìn quanh trái/phải/lên/xuống 30s rồi ngủ
-//  listening → tỉnh, chăm chú nhìn xuống thanh lệnh 30s rồi ngủ
-//  thinking  → tỉnh, ngước lên suy nghĩ (không nhảy), không bao giờ ngủ
+//  listening → tỉnh, nhìn thẳng ra người nói (gật đầu khi nghe thấy tiếng, xem bot-gaze.cjs) 30s rồi ngủ
+//  thinking  → tỉnh, nhìn về khung chat, 3 chấm suy nghĩ trên đầu, không nhảy, không bao giờ ngủ
 //  working   → trạng thái working của thư viện (bận rộn)
-//  speaking  → tỉnh, có miệng
+//  speaking  → tỉnh, có miệng, nhìn về khung chat, không lật/nhảy ngẫu nhiên
+//  chuột     → nhìn theo, KHÔNG nhảy khi lại gần; chỉ bấm vào bot mới nhảy mừng
 // Đồng hồ giả của Playwright (page.clock) để không phải chờ 30s thật; WebSocket và /api bị mock.
 // Chạy: PW=<module playwright> node frontend/e2e/bot.cjs   (cần `npm run dev` ở :5173)
 const { chromium } = require(process.env.PW || "playwright");
@@ -26,7 +27,7 @@ async function open(browser, opts = {}) {
   await page.waitForTimeout(300);
   await page.waitForTimeout(300);
   const emit = async (s) => { await page.evaluate((st) => window.dispatchEvent(new CustomEvent("jarvis:mascot", { detail: st })), s); await page.waitForTimeout(80); };
-  const st = () => page.$eval("#jarvis-bot", (e) => ({ state: e.dataset.state, face: e.dataset.face, look: e.dataset.look || "", grace: e.dataset.grace, hops: Number(e.dataset.hops || 0), jumps: e.dataset.idlejumps })).catch(() => null);
+  const st = () => page.$eval("#jarvis-bot", (e) => ({ state: e.dataset.state, face: e.dataset.face, look: e.dataset.look || "", grace: e.dataset.grace, hops: Number(e.dataset.hops || 0), jumps: e.dataset.idlejumps, dots: e.dataset.dots || "" })).catch(() => null);
   const ff = async (ms) => { await page.clock.fastForward(ms); await page.waitForTimeout(60); };
   return { page, emit, st, ff, sock };
 }
@@ -57,7 +58,7 @@ async function open(browser, opts = {}) {
   // speaking: tỉnh + có miệng
   await emit("speaking");
   let s = await st();
-  check(s.state === "default" && s.face === "mouth" && s.look === "", "1. speaking → tỉnh, có miệng, không nhìn quanh", JSON.stringify(s));
+  check(s.state === "default" && s.face === "mouth" && s.look === "chat" && s.jumps === "off" && s.dots === "", "1. speaking → tỉnh, có miệng, nhìn về khung chat, tắt lật/nhảy ngẫu nhiên", JSON.stringify(s));
 
   // working: trạng thái bận của thư viện, mặt thường
   await emit("working");
@@ -67,10 +68,10 @@ async function open(browser, opts = {}) {
   // thinking: tỉnh, ngước lên các hướng phía trên, không nhảy, không ngủ
   await emit("thinking");
   s = await st();
-  check(s.state === "default" && /^up/.test(s.look) && s.face === "eyes", "3a. thinking → tỉnh, ngước lên suy nghĩ", JSON.stringify(s));
-  const ponder = new Set([s.look]);
-  for (let i = 0; i < 4; i++) { await ff(1900); ponder.add((await st()).look); }
-  check(ponder.size >= 2 && [...ponder].every((l) => /^up/.test(l)), "3b. thinking: đổi giữa các hướng ngước lên", [...ponder].join(","));
+  check(s.state === "default" && s.look === "chat" && s.face === "eyes" && s.dots === "1" && s.jumps === "off", "3a. thinking → tỉnh, nhìn về khung chat, 3 chấm suy nghĩ trên đầu", JSON.stringify(s));
+  for (let i = 0; i < 4; i++) await ff(1900);
+  s = await st();
+  check(s.look === "chat" && s.dots === "1", "3b. thinking kéo dài: vẫn nhìn chat, vẫn 3 chấm", JSON.stringify(s));
   await ff(60000);
   s = await st();
   check(s.state === "default" && s.grace !== "1" && s.hops === 0, "3c. đang nghĩ thì không bao giờ ngủ, không nhảy", JSON.stringify(s));
@@ -78,10 +79,10 @@ async function open(browser, opts = {}) {
   // listening: chăm chú nhìn xuống thanh lệnh, 30s rồi ngủ
   await emit("listening");
   s = await st();
-  check(s.state === "default" && /^down/.test(s.look) && s.grace === "1", "4a. listening → tỉnh, nhìn xuống thanh lệnh, bắt đầu 30s chờ", JSON.stringify(s));
+  check(s.state === "default" && /^front/.test(s.look) && s.grace === "1" && s.dots === "", "4a. listening → tỉnh, nhìn thẳng ra người nói, bắt đầu 30s chờ", JSON.stringify(s));
   await ff(29000);
   s = await st();
-  check(s.state === "default" && /^down/.test(s.look), "4b. 29s vẫn tỉnh, vẫn chăm chú nhìn xuống", JSON.stringify(s));
+  check(s.state === "default" && /^front/.test(s.look), "4b. 29s vẫn tỉnh, vẫn chăm chú nhìn thẳng", JSON.stringify(s));
   await ff(2500);
   s = await st();
   check(s.state === "sleeping" && s.grace !== "1" && s.look === "", "4c. đủ 30s không ai nói → ngủ", JSON.stringify(s));
@@ -110,7 +111,7 @@ async function open(browser, opts = {}) {
   await emit("idle"); await ff(20000);
   await emit("listening");
   s = await st();
-  check(s.state === "default" && /^down/.test(s.look), "7a. idle 20s rồi sang nghe → vẫn tỉnh, đổi sang nhìn xuống", JSON.stringify(s));
+  check(s.state === "default" && /^front/.test(s.look), "7a. idle 20s rồi sang nghe → vẫn tỉnh, đổi sang nhìn thẳng", JSON.stringify(s));
   await ff(11000);
   check((await st()).state === "sleeping", "7b. đồng hồ 30s không bị đếm lại khi idle ↔ listening");
 
@@ -137,10 +138,10 @@ async function open(browser, opts = {}) {
   check(mid1.follow === "1" && mid1.hops === 0, "11b. chuột lại vài bề ngang đầu: bot nhìn theo chuột (chưa nhảy)", JSON.stringify(mid1));
   await pl.page.mouse.move(c.x - 40, c.y - 10); await pl.page.waitForTimeout(250);
   const near1 = await ds();
-  check(near1.hops >= 1, "11c. chuột lại sát: bot nhảy mừng", JSON.stringify(near1));
-  await pl.page.waitForTimeout(1800);
+  check(near1.follow === "1" && near1.hops === 0, "11c. chuột lại sát: bot vẫn nhìn theo, KHÔNG nhảy", JSON.stringify(near1));
+  await pl.page.mouse.move(c.x - 12, c.y - 4); await pl.page.waitForTimeout(2000);
   const near2 = await ds();
-  check(near2.hops > near1.hops, "11d. chuột vẫn ở gần: tiếp tục nhảy tưng tưng", `${near1.hops} → ${near2.hops}`);
+  check(near2.hops === 0, "11d. chuột đứng sát bot nhiều giây: vẫn không nhảy", `${near2.hops}`);
   await pl.page.mouse.move(c.x - 700, c.y - 300); await pl.page.waitForTimeout(150);
   const h0 = (await ds()).hops;
   await pl.page.mouse.click(c.x, c.y); await pl.page.waitForTimeout(700);

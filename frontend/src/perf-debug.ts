@@ -4,6 +4,7 @@
 // context state, whether the animation gate has paused the decorative loops, and the JS heap. Also on `window.__perf`.
 // Read it together with Edge DevTools (see README, "Debug hiệu năng").
 import { animPaused } from "./anim-gate";
+import { micStats } from "./voice";
 
 export interface PerfSample {
   fps: number;
@@ -30,6 +31,13 @@ const callerOf = (stack: string | undefined): string => {
   const file = q >= 0 ? parts[0].slice(0, q) : parts[0];
   return file && parts.length >= 3 ? `${file}:${parts[parts.length - 2]}` : "other";
 };
+
+/** Speech recognition at a glance: on/off, starts, results (final), errors by code, and the last thing it heard. */
+function micLine(): string {
+  const m = micStats, err = Object.entries(m.errors).map(([k, v]) => `${k}×${v}`).join(" ") || "-";
+  const last = m.results ? ` last ${((performance.now() - m.lastAt) / 1000).toFixed(1)}s ago conf ${m.lastConf.toFixed(2)} "${m.lastText.slice(0, 24)}"` : "";
+  return `mic SR ${m.on ? "on" : "off"} starts ${m.starts} ends ${m.ends} results ${m.results} (final ${m.finals}) err ${err}${last}`;
+}
 
 export function mountPerfDebug(audioCtx: AudioContext): void {
   if (document.getElementById("perf-debug")) return;
@@ -93,7 +101,8 @@ export function mountPerfDebug(audioCtx: AudioContext): void {
       `rAF/s by caller:\n    ${by || "-"}\n` +
       `DOM ${s.dom}  bubbles ${s.bubbles}  canvases ${s.canvases}\n` +
       `CSS animations running ${s.animations}: ${s.animNames.join(", ") || "-"}\n` +
-      `AudioContext ${s.audio}  gate ${s.gatePaused ? "PAUSED" : "active"}  heap ${s.heapMB ?? "?"}MB`;
+      `${micLine()}\n` +
+      `AudioContext ${s.audio}  audioSession ${(navigator as unknown as { audioSession?: { type: string } }).audioSession?.type ?? "n/a"}  gate ${s.gatePaused ? "PAUSED" : "active"}  heap ${s.heapMB ?? "?"}MB`;
     frames = 0; rafCalls = 0; rafBy = {}; longTasks = 0; longMax = 0;
   };
   window.setInterval(tick, 1000);

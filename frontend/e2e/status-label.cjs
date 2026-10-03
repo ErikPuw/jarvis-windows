@@ -1,4 +1,5 @@
-// E2E cho chữ trạng thái: trượt mờ theo hướng khi đổi, cuộn vào sau 10s rảnh, cuộn ra khi có việc.
+// E2E cho chữ trạng thái: trượt mờ theo hướng khi đổi, cuộn vào sau 10s rảnh (CHỈ idle: hệ thống đã trả lời xong, mic tắt), cuộn ra khi có việc.
+// Mọi trạng thái đang hoạt động (đang nghe, nghĩ, làm việc, nói) luôn hiện chữ, không tự mờ.
 // Đồng hồ giả của Playwright (page.clock) để không phải chờ 10s thật; WebSocket và /api bị mock.
 // Chạy: PW=<module playwright> node frontend/e2e/status-label.cjs   (cần `npm run dev` ở :5173)
 const { chromium } = require(process.env.PW || "playwright");
@@ -64,12 +65,17 @@ async function open(browser, opts = {}) {
   await page.clock.fastForward(30000);
   check(!(await quiet()), "3b. đang bận thì không bao giờ cuộn vào");
 
-  // 4. bật mic (Nghe, im lặng) cũng cuộn vào sau 10s
+  // 4. đang nghe (mic bật) là trạng thái hoạt động: chữ hiện mãi; tắt mic về idle thì 10s sau mới cuộn vào
   send("idle"); await page.waitForTimeout(200);
   await page.click("#btn-mute"); await page.waitForTimeout(300);
   check((await label()).text === "Đang nghe…", "4a. bật mic → Đang nghe…");
+  await page.clock.fastForward(30000); await page.waitForTimeout(700);
+  const ln = await label();
+  check(!(await quiet()) && ln.w > 40 && ln.op > 0.9 && ln.text === "Đang nghe…", "4b. đang nghe, im lặng 30s → chữ VẪN hiện (không tự mờ)", JSON.stringify(ln));
+  await page.click("#btn-mute"); await page.waitForTimeout(300);
+  check((await label()).text === "Sẵn sàng", "4c. tắt mic → Sẵn sàng (idle)");
   await page.clock.fastForward(10500); await page.waitForTimeout(700);
-  check(await quiet(), "4b. nghe mà im lặng 10s → chữ cuộn vào");
+  check(await quiet(), "4d. idle 10s → chữ cuộn vào");
 
   // 5. gõ phím hoặc bấm chuột → cuộn ra và đếm lại
   await page.keyboard.press("Shift"); await page.waitForTimeout(700);

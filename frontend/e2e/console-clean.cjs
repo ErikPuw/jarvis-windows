@@ -1,7 +1,8 @@
-// E2E: console sạch và âm thanh không chạy nền khi không nói.
+// E2E: console sạch; AudioContext của trình phát chạy suốt như bản gốc (không suspend: iOS tắt nhận dạng giọng nói khi context bị suspend dưới chân).
+// Mở khoá âm thanh (resume) KHÔNG gắn với cú chạm đầu tiên vào trang: nó xảy ra khi thật sự cần — chat đầu tiên (gửi), bấm nút mic, hoặc khi TTS
+// chuẩn bị đọc — và nếu context đã chạy thì bỏ qua (không resume, không log lại).
 //  - Không còn cảnh báo "THREE.Clock deprecated" và "The AudioContext was not allowed to start" lúc nạp trang.
-//  - AudioContext của trình phát: chỉ chạy khi có tiếng, nói xong thì tự suspend (một context chạy mãi giữ luồng âm thanh
-//    của hệ điều hành thức, tốn pin/nhiệt cả lúc im lặng), lượt nói sau thì tự chạy lại.
+//  - AudioContext của trình phát: luôn chạy sau cú chạm đầu tiên (mở khoá), nói xong vẫn chạy, lượt nói sau phát ngay.
 //  - Bảng debug hiệu năng chỉ xuất hiện khi có ?debug=1.
 // WebSocket và /api bị mock. Chạy: PW=<module playwright> node frontend/e2e/console-clean.cjs   (cần `npm run dev` ở :5173)
 const { chromium } = require(process.env.PW || "playwright");
@@ -14,7 +15,8 @@ async function open(browser, url) {
   await ctx.addInitScript(() => {
     window.__ctxs = [];
     const AC = window.AudioContext;
-    window.AudioContext = class extends AC { constructor(...a) { super(...a); window.__ctxs.push(this); } };
+    // Chromium không đầu mở context ở trạng thái running ngay; trình duyệt thật (iOS, Chrome có chính sách tự phát) mở ở suspended: giả lập như vậy
+    window.AudioContext = class extends AC { constructor(...a) { super(...a); window.__ctxs.push(this); this.suspend().catch(() => {}); } };
     window.__resumeCalls = 0;
     const rs = AC.prototype.resume; AC.prototype.resume = function (...a) { window.__resumeCalls++; return rs.apply(this, a); };
   });
@@ -41,20 +43,32 @@ const tone = (sec) => { const n = 24000 * sec, a = new Int16Array(n); for (let i
   check((await t.page.evaluate(() => window.__resumeCalls)) === 0, "2. chưa chạm gì thì không gọi resume() (đó là nguồn cảnh báo AudioContext chưa được phép chạy)", String(await t.page.evaluate(() => window.__resumeCalls)));
   await t.page.mouse.click(300, 300); await t.page.waitForTimeout(400);
   await t.page.mouse.click(320, 320); await t.page.keyboard.press("Shift"); await t.page.waitForTimeout(300);
-  const resumed = t.logs.filter((l) => /\[audio\] context resumed/.test(l)).length;
-  check(resumed === 1, "3. chạm lần đầu → mở khoá âm thanh đúng 1 lần (nhiều lần chạm liên tiếp không resume lặp)", `${resumed} lần`);
+  const resumedLogs = (x) => x.logs.filter((l) => /\[audio\] context resumed/.test(l)).length;
+  check(resumedLogs(t) === 0 && (await state(t.page)) === "suspended", "3. chạm lung tung vào trang thì chưa mở khoá âm thanh (chưa có gì để phát)", `${resumedLogs(t)} lần, ${await state(t.page)}`);
 
-  // lượt nói: chạy khi có tiếng, nói xong thì suspend
+  // lượt nói: TTS chuẩn bị đọc thì tự resume đúng 1 lần, có rồi thì bỏ qua
   t.send({ type: "stream_start" });
   t.send({ type: "pcm_chunk", data: tone(1), sample_rate: 24000, gap_ms: 0 });
   await t.page.waitForTimeout(500);
-  check((await state(t.page)) === "running", "4a. đang nói → AudioContext chạy", String(await state(t.page)));
-  await t.page.waitForTimeout(4500); // 0,45s đệm + 1s tiếng + thời gian chờ trước khi suspend
-  check((await state(t.page)) === "suspended", "4b. nói xong → AudioContext tự suspend (không chạy nền khi im lặng)", String(await state(t.page)));
+  check((await state(t.page)) === "running" && resumedLogs(t) === 1, "4a. TTS chuẩn bị đọc → tự resume đúng 1 lần", `${await state(t.page)} ${resumedLogs(t)} lần`);
+  await t.page.waitForTimeout(4500); // 0,45s đệm + 1s tiếng + thêm quá 2,5s
+  check((await state(t.page)) === "running", "4b. nói xong → AudioContext vẫn chạy (như bản gốc, không suspend)", String(await state(t.page)));
   t.send({ type: "pcm_chunk", data: tone(1), sample_rate: 24000, gap_ms: 0 });
   await t.page.waitForTimeout(700);
-  check((await state(t.page)) === "running", "4c. lượt nói sau → tự chạy lại", String(await state(t.page)));
+  check((await state(t.page)) === "running" && resumedLogs(t) === 1, "4c. lượt nói sau → phát ngay, đã chạy rồi thì bỏ qua (không resume/log lại)", `${await state(t.page)} ${resumedLogs(t)} lần`);
   await t.page.context().close();
+
+  // chat đầu tiên (gửi) và bấm nút mic cũng là cử chỉ để mở khoá, một lần
+  const u = await open(browser, BASE);
+  await u.page.fill("#command-input", "xin chào"); await u.page.press("#command-input", "Enter"); await u.page.waitForTimeout(500);
+  check((await state(u.page)) === "running" && resumedLogs(u) === 1, "4d. chat đầu tiên (gửi) → mở khoá âm thanh đúng 1 lần", `${await state(u.page)} ${resumedLogs(u)} lần`);
+  await u.page.fill("#command-input", "câu hai"); await u.page.press("#command-input", "Enter"); await u.page.waitForTimeout(300);
+  check(resumedLogs(u) === 1, "4e. chat lần sau: đã chạy rồi thì bỏ qua", `${resumedLogs(u)} lần`);
+  await u.page.context().close();
+  const m = await open(browser, BASE);
+  await m.page.click("#btn-mute"); await m.page.waitForTimeout(500);
+  check((await state(m.page)) === "running" && resumedLogs(m) === 1, "4f. bấm nút mic → mở khoá âm thanh đúng 1 lần (người chỉ nói không cần gõ chat)", `${await state(m.page)} ${resumedLogs(m)} lần`);
+  await m.page.context().close();
 
   // bảng debug
   const off = await open(browser, BASE);
