@@ -424,6 +424,22 @@ Dữ liệu nằm trong `data/jobs/` (hồ sơ, CV, danh sách chờ, nhật ký
 - **Dùng model lớn (Claude, Gemini, ChatGPT)**: đổi `LOCAL_URL`, `LOCAL_API_KEY`, `LOCAL_MODEL` trong `.env` sang endpoint tương thích OpenAI của nhà cung cấp. Nếu API của họ khác định dạng OpenAI, cần chỉnh hoặc viết lại [`engine/server/llm_server.py`](engine/server/llm_server.py) (cách gọi, tham số, stream). Prompt trong `prompt/` được tinh chỉnh cho model local nhỏ, model lớn có thể cần chỉnh lại.
 - **Test có thể lỗi trên máy bạn**: một số test phụ thuộc dịch vụ ngoài (llama.cpp, Redis, `bsdtar`, mạng). Sau khi tải về hãy chạy `python -m pytest tests -q --ignore=tests/live --ignore-glob="tests/test_live_*"` và kiểm tra lại các test lỗi trước khi sửa code.
 
+- **Dự án viết thuần tiếng Việt**: prompt, giọng đọc, nhận dạng giọng nói và nguồn dữ liệu đều theo tiếng Việt. Dùng ngôn ngữ khác thì xem mục [Đổi ngôn ngữ và giọng nói](#đổi-ngôn-ngữ-và-giọng-nói) ngay bên dưới.
+
+#### Đổi ngôn ngữ và giọng nói
+
+1. **Giọng đọc (TTS)**. Mặc định Edge TTS (`vi-VN-NamMinhNeural`).
+   - Đổi sang ngôn ngữ khác trong `.env`: `TTS_LOCAL_MODEL=en-US-GuyNeural` (danh sách giọng: `edge-tts --list-voices`). Giữ `EDGE_TTS_ENABLED=true`, `VIENEU_TTS_ENABLED=false`, vì VieNeu chỉ đọc tiếng Việt.
+   - Muốn dịch vụ mạnh hơn (ElevenLabs, OpenAI TTS, Azure, Google...): viết thêm một engine trong `engine/server/` theo mẫu `tts_engine.py` và đăng ký ở `tts_manager.py` (đọc `TTS_ENGINE`). Dịch vụ nên trả âm thanh từng câu để `voice_streamer.py` phát liên tục.
+2. **Nhận dạng giọng nói (STT)**: `engine/server/whisper_server.py` đang cố định `language="vi"`. Đổi mã ngôn ngữ (vd `"en"`) hoặc bỏ tham số để Whisper tự nhận.
+3. **Prompt**: toàn bộ prompt nằm trong `prompt/*.md`. Ưu tiên chỉnh `identity.md`, `soul.md`, `user.md`, `style_lock.md`, `voice_cues.md`, `persona_short.md`. Các prompt này đang yêu cầu trả lời tiếng Việt và xưng hô "tôi - ngài". Thêm chỉ dẫn rõ ràng cho model ở đầu `identity.md`, ví dụ:
+   ```
+   Ngôn ngữ của người dùng là English. Luôn trả lời bằng English, kể cả khi dữ liệu công cụ trả về tiếng Việt.
+   Xưng hô: gọi người dùng là "sir", tự xưng "I". Câu ngắn, tự nhiên, phù hợp để đọc thành tiếng.
+   ```
+   Sau khi sửa, chạy lại test: nhiều test so prompt với bản mẫu trong `tests/golden/`, cần cập nhật các file này theo prompt mới.
+4. **Dữ liệu và từ khoá tiếng Việt**: tin tức, thời tiết, giá vàng/xăng, lịch vạn niên, từ khoá chọn agent (`engine/agents/`) và tên lệnh trong `commands/` đều theo tiếng Việt/Việt Nam. Đổi ngôn ngữ thì các phần này cần xem lại, hoặc tắt các lệnh không dùng.
+
 ### Các bước
 
 ```bash

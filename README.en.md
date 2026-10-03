@@ -426,6 +426,22 @@ Data lives in `data/jobs/` (profile, CV, pending list, sent log). It never appli
 - **Using a large model (Claude, Gemini, ChatGPT)**: change `LOCAL_URL`, `LOCAL_API_KEY`, `LOCAL_MODEL` in `.env` to the provider's OpenAI-compatible endpoint. If their API is not OpenAI-shaped, adjust or rewrite [`engine/server/llm_server.py`](engine/server/llm_server.py) (request format, parameters, streaming). The prompts in `prompt/` are tuned for small local models; larger models may need re-tuning.
 - **Tests may fail on your machine**: some depend on external services (llama.cpp, Redis, `bsdtar`, network). After downloading, run `python -m pytest tests -q --ignore=tests/live --ignore-glob="tests/test_live_*"` and check failing tests before changing code.
 
+- **The project is written purely for Vietnamese**: prompts, voice, speech recognition and data sources all assume Vietnamese. For another language see [Changing language and voice](#changing-language-and-voice) right below.
+
+#### Changing language and voice
+
+1. **Voice output (TTS)**. Default is Edge TTS (`vi-VN-NamMinhNeural`).
+   - Switch language in `.env`: `TTS_LOCAL_MODEL=en-US-GuyNeural` (voice list: `edge-tts --list-voices`). Keep `EDGE_TTS_ENABLED=true` and `VIENEU_TTS_ENABLED=false`, because VieNeu reads Vietnamese only.
+   - For a stronger service (ElevenLabs, OpenAI TTS, Azure, Google...): add an engine in `engine/server/` modelled on `tts_engine.py` and register it in `tts_manager.py` (reads `TTS_ENGINE`). The service should return audio sentence by sentence so `voice_streamer.py` can play it continuously.
+2. **Speech recognition (STT)**: `engine/server/whisper_server.py` hardcodes `language="vi"`. Change it (e.g. `"en"`) or drop the argument so Whisper auto-detects.
+3. **Prompts**: all prompts live in `prompt/*.md`. Start with `identity.md`, `soul.md`, `user.md`, `style_lock.md`, `voice_cues.md`, `persona_short.md`. They currently require Vietnamese replies and the "tôi - ngài" form of address. Add an explicit instruction for the model at the top of `identity.md`, for example:
+   ```
+   The user's language is English. Always reply in English, even when tool results come back in Vietnamese.
+   Address the user as "sir" and refer to yourself as "I". Keep sentences short and natural for speech.
+   ```
+   After editing, rerun the tests: many compare prompts against the samples in `tests/golden/`, so update those files to match.
+4. **Vietnamese data and keywords**: news, weather, gold/fuel prices, lunar calendar, agent-selection keywords (`engine/agents/`) and command names in `commands/` are Vietnamese/Vietnam-specific. When changing language, review these or disable commands you do not use.
+
 ### Steps
 
 ```bash
