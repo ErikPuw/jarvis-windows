@@ -7,11 +7,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from engine.orchestrator.registry import AGENT_REGISTRY, resolve_runner, self_check
 
 
-def test_registry_has_all_18_agents():
+def test_registry_has_all_16_agents():
     expected = {
-        "goose", "office", "email", "desktop", "search", "vietlott", "vision",
+        "goose", "office", "email", "desktop", "search", "vision",
         "webcam", "media", "history", "notes", "project", "security", "image",
-        "legal", "win_control", "rag", "dream",
+        "win_control", "rag", "dream",
     }
     assert set(AGENT_REGISTRY.keys()) == expected, set(AGENT_REGISTRY.keys())
 
@@ -39,7 +39,7 @@ def test_self_check_reports_broken_entry():
 
 
 if __name__ == "__main__":
-    test_registry_has_all_18_agents()
+    test_registry_has_all_16_agents()
     test_resolve_runner_returns_callable_for_known_agent()
     test_resolve_runner_returns_none_for_unknown_agent()
     test_self_check_passes_for_every_registered_agent()

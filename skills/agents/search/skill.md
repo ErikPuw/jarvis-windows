@@ -27,9 +27,6 @@ tools:
 - name: get_zodiac_data
   label: tra cứu cung hoàng đạo
   offer: true
-- name: vietnam_data_lookup
-  label: tra cứu dữ liệu việt nam
-  offer: false
 - name: map_route
   label: tìm đường đi
   offer: false
@@ -56,7 +53,6 @@ Tra cứu thời gian thực dạng văn bản: thời tiết, tin tức, giá t
 - `get_epic_free_games`: game miễn phí (được đề nghị qua chat)
 - `get_vannien_data`: lịch vạn niên (được đề nghị qua chat)
 - `get_zodiac_data`: tra cứu cung hoàng đạo (được đề nghị qua chat)
-- `vietnam_data_lookup`: tra cứu dữ liệu việt nam
 - `map_route`: tìm đường đi
 - `map_pois`: tìm địa điểm
 - `search_products`: tra cứu giá sản phẩm (được đề nghị qua chat)
