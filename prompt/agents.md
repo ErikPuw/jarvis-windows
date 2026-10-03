@@ -3,7 +3,6 @@
 - email: Chỉ khi kiểm tra 10 email gần nhất hoặc lịch hẹn 7 ngày tới trong Outlook.
 - desktop: Mở, đóng, bật, tắt ứng dụng Windows (bao gồm cả Word/Excel/PowerPoint/Outlook-email khi chỉ là mở/đóng ứng dụng, không phải đọc nội dung).
 - search: Tra cứu thời gian thực dạng văn bản: thời tiết, tin tức, giá vàng/xăng/usd, giá tổng hợp/giá thị trường hôm nay (vàng, xăng dầu, tỷ giá, gas, điện, nước), bản đồ, lịch vạn niên, cung hoàng đạo, lịch chiếu CGV, game miễn phí. KHÔNG dùng để xem video/livestream.
-- vietlott: Phân tích kết quả Mega 6/45, Power 6/55.
 - vision: Chỉ khi người dùng yêu cầu chụp/xem màn hình ngay bây giờ.
 - webcam: Chỉ khi người dùng yêu cầu xem/dùng webcam hoặc camera trực tiếp.
 - media: Nghe nhạc, xem phim, xem livestream, xem video Youtube.
@@ -12,7 +11,6 @@
 - project: Kiểm tra project, quét lỗi cú pháp, báo cáo sức khỏe, lịch sử vá lỗi.
 - security: Kiểm tra an ninh mạng, quét cổng, giám sát firewall, nhật ký xâm nhập.
 - image: Tăng độ phân giải ảnh bằng AI Upscayl.
-- legal: Tra cứu văn bản pháp luật Việt Nam.
 - win_control: Chỉ khi người dùng gọi rõ điều khiển UI/Explorer Windows.
 - rag: Chỉ khi có tệp đính kèm đáng tin cậy VÀ người dùng yêu cầu đọc/tóm tắt/phân tích nội dung file đó.
 - dream: Chỉ khi người dùng chủ động yêu cầu dọn dẹp/tóm tắt hội thoại cũ hoặc kích hoạt chu kỳ Dream ngay.

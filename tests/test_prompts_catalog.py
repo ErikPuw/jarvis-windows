@@ -21,10 +21,8 @@ EXPECTED_OFFERABLE_TOOLS = {
     "take_note": ("notes", "ghi chú"),
     "query_history": ("history", "xem lại lịch sử trò chuyện"),
     "get_vannien_data": ("search", "lịch vạn niên"),
-    "legal_lookup": ("legal", "tra cứu pháp luật"),
     "get_zodiac_data": ("search", "tra cứu cung hoàng đạo"),
     "search_products": ("search", "tra cứu giá sản phẩm"),
-    "vietlott_analysis": ("vietlott", "phân tích vietlott"),
 }
 
 EXPECTED_AGENT_CRITERIA = """
@@ -33,7 +31,6 @@ EXPECTED_AGENT_CRITERIA = """
 - email: Chỉ khi kiểm tra 10 email gần nhất hoặc lịch hẹn 7 ngày tới trong Outlook.
 - desktop: Mở, đóng, bật, tắt ứng dụng Windows (bao gồm cả Word/Excel/PowerPoint/Outlook-email khi chỉ là mở/đóng ứng dụng, không phải đọc nội dung).
 - search: Tra cứu thời gian thực dạng văn bản: thời tiết, tin tức, giá vàng/xăng/usd, giá tổng hợp/giá thị trường hôm nay (vàng, xăng dầu, tỷ giá, gas, điện, nước), bản đồ, lịch vạn niên, cung hoàng đạo, lịch chiếu CGV, game miễn phí. KHÔNG dùng để xem video/livestream.
-- vietlott: Phân tích kết quả Mega 6/45, Power 6/55.
 - vision: Chỉ khi người dùng yêu cầu chụp/xem màn hình ngay bây giờ.
 - webcam: Chỉ khi người dùng yêu cầu xem/dùng webcam hoặc camera trực tiếp.
 - media: Nghe nhạc, xem phim, xem livestream, xem video Youtube.
@@ -42,7 +39,6 @@ EXPECTED_AGENT_CRITERIA = """
 - project: Kiểm tra project, quét lỗi cú pháp, báo cáo sức khỏe, lịch sử vá lỗi.
 - security: Kiểm tra an ninh mạng, quét cổng, giám sát firewall, nhật ký xâm nhập.
 - image: Tăng độ phân giải ảnh bằng AI Upscayl.
-- legal: Tra cứu văn bản pháp luật Việt Nam.
 - win_control: Chỉ khi người dùng gọi rõ điều khiển UI/Explorer Windows.
 - rag: Chỉ khi có tệp đính kèm đáng tin cậy VÀ người dùng yêu cầu đọc/tóm tắt/phân tích nội dung file đó.
 - dream: Chỉ khi người dùng chủ động yêu cầu dọn dẹp/tóm tắt hội thoại cũ hoặc kích hoạt chu kỳ Dream ngay.
@@ -120,7 +116,7 @@ def test_offerable_tools_matches_spec():
 
     offers = catalog.offerable_tools()
     assert offers == EXPECTED_OFFERABLE_TOOLS, f"Difference: {set(offers.items()) ^ set(EXPECTED_OFFERABLE_TOOLS.items())}"
-    assert len(offers) == 19
+    assert len(offers) == 17
 
 
 def test_agent_criteria_matches_spec_verbatim():

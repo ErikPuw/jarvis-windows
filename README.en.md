@@ -16,7 +16,7 @@ You speak or type in Vietnamese, and JARVIS understands and **does real work** o
 
 - 🎙️ **Real-time voice conversation** in Vietnamese.
 - 🖥️ **Machine control**: open/close apps, read the screen, use the webcam, create and edit Word/Excel/PowerPoint files.
-- 🔎 **Lookups**: news, weather, gold prices and exchange rates, YouTube, Vietnamese law.
+- 🔎 **Lookups**: news, weather, gold prices and exchange rates, YouTube.
 - 📄 **Question answering over your own documents** (RAG).
 - 🧠 **Remembers and learns** from conversations, with a mirror in Obsidian you can read back.
 
@@ -37,7 +37,7 @@ You speak or type in Vietnamese, and JARVIS understands and **does real work** o
 3. [How a Conversation Turn Works](#-how-a-conversation-turn-works)
 4. [Prompts in One Place](#-prompts-in-one-place)
 5. [Offers, "Yes" and Anti-Fabrication](#-offers-yes-and-anti-fabrication)
-6. [18 Task Agents](#-18-task-agents)
+6. [16 Task Agents](#-16-task-agents)
 7. [Self-Learning, Evolution, Dream, Self-Healing](#-self-learning-evolution-dream-self-healing)
 8. [Memory, Memory Center and Obsidian Wiki](#️-memory-memory-center-and-obsidian-wiki)
 9. [Frontend](#-frontend)
@@ -66,7 +66,7 @@ You speak or type in Vietnamese, and JARVIS understands and **does real work** o
 | **Local embeddings** | `nomic-embed-text-v1.5-q8_0` at `http://localhost:8081/v1`, used for RAG and semantic memory |
 | **Vietnamese voice** | Speech recognition via the Web Speech API (`vi-VN`) with recognition-error correction. Speech output via Edge-TTS (`vi-VN-NamMinhNeural`) or VieNeu streaming (port 8082); only one may be enabled |
 | **Windows control** | The `win_control` agent uses cua-driver (UI Automation) to drive apps in the background without taking the mouse; asks before every machine-changing action. How to install cua-driver: see [details](#-core-tooling-web-scraping-and-windows-control) |
-| **Web scraping** | Two-tier Scrapling: browser-imitating HTTP first, a headless browser as fallback for bot-protected or JavaScript-only pages. Used for news, product prices, law, jobs, weather, Vietlott |
+| **Web scraping** | Two-tier Scrapling: browser-imitating HTTP first, a headless browser as fallback for bot-protected or JavaScript-only pages. Used for news, product prices, jobs, weather |
 | **Two-tier routing** | The gate only decides **chat or work**, without knowing which agents exist. The orchestrator picks agents via native tool calling and can chain several agents |
 | **Controlled offers** | While you are just chatting, Jarvis offers actions it can take using `<ask_user>`/`<action_run>` tags. When you reply "yes" (`ừ`), code runs exactly the offered tool — the LLM does not guess again |
 | **Centralised prompts** | All prompt text lives in `prompt/*.md`; the code that assembles prompts lives in `engine/prompts/` |
@@ -85,11 +85,10 @@ You speak or type in Vietnamese, and JARVIS understands and **does real work** o
 
 ### 🇻🇳 Extras (optional)
 
-Each extra is its own agent in `engine/agents/` (full list in [18 task agents](#-18-task-agents)):
+Each extra is its own agent in `engine/agents/` (full list in [16 task agents](#-16-task-agents)):
 
 - **Vietnam daily life**: weather, news, gold/fuel prices and exchange rates, lunar calendar, zodiac, CGV showtimes, Epic free games, maps and directions.
 - **Entertainment**: music, YouTube, livestreams.
-- **Specialised lookups**: Vietnamese legal documents; Vietlott (statistics, backtests, no predictions).
 - **Work**: Outlook email and calendar, notes, `@jobs` job search and cover-letter drafting (sends only after you approve).
 
 ---
@@ -157,22 +156,20 @@ Each kind of data reaches the model through **exactly one channel**.
 
 ---
 
-## 🤖 18 Task Agents
+## 🤖 16 Task Agents
 
 Agents are registered in `engine/orchestrator/registry.py`; source code is in `engine/agents/`.
 
 | Agent | Main function |
 |-------|---------------|
 | **desktop** | Open/close Windows apps, keeping the app's original name |
-| **search** | Weather, news, gold/fuel prices and exchange rates, lunar calendar, zodiac, CGV showtimes, Epic free games, administrative units, maps and directions |
+| **search** | Weather, news, gold/fuel prices and exchange rates, lunar calendar, zodiac, CGV showtimes, Epic free games, maps and directions |
 | **media** | Music, YouTube, livestreams (played inside the UI) |
 | **notes** | Write, view, delete notes |
 | **vision** | Capture and analyse the screen with a vision LLM |
 | **webcam** | Capture and analyse a webcam frame |
 | **office** | Create/edit attached Word, Excel, PowerPoint files (`officecli` skill) |
 | **rag** | Read, summarise and answer questions over attached files or indexed documents |
-| **legal** | Look up Vietnamese legal documents |
-| **vietlott** | Mega 6/45 and Power 6/55 results, probabilities, backtests (no predictions) |
 | **security** | Check network security, ports, firewall |
 | **email** | Last 10 emails and the next 7 days of appointments in Outlook |
 | **history** | Review conversation history |
@@ -297,7 +294,7 @@ Heavy lists (agents, hooks, skills, prompts, commands, plugins) come from `/api/
 ## 🔌 Extending: Commands, Skills, Hooks, MCP, Telegram
 
 - **33 Markdown commands** in `commands/` (`open_app`, `check_mail`, `search_media`, `rag_tool`, `win_control`, `dream`…), hot-reloaded.
-- **3 skills** in `skills/`: `legal`, `officecli`, `self_evolution`.
+- **2 skills** in `skills/`: `officecli`, `self_evolution`.
 - **Hooks & plugins**: events `on_startup`, `on_shutdown`, `ON_MESSAGE_RECEIVE`, `ON_RESPONSE_GENERATE`; dynamic loading of `.py`/`.ts` plugins.
 - **Self-installing extensions** (`install_extension`): hot-load new plugins/skills/hooks from a URL or code, no restart needed.
 - **MCP** (`config/mcp_config.json`): `wikipedia-mcp` (enabled); `gitnexus`, `headroom`, `codebase-memory-mcp` (configured, disabled by default). Scrapling and cua-driver are **not** MCP servers: JARVIS calls them directly, see [Core tooling](#-core-tooling-web-scraping-and-windows-control).
@@ -320,7 +317,7 @@ Source: [`engine/tools/browser.py`](engine/tools/browser.py). Uses Scrapling ins
 | `StealthyFetcher` | Headless browser (Patchright), aimed at bot-protected pages such as Cloudflare | Fallback when tier 1 is blocked, or the page needs JavaScript to show its content (e.g. product listings) |
 
 - `StealthyFetcher` prefers an already-installed Edge/Chrome over the bundled "Chrome for Testing" build (which may fail to launch on some Windows machines).
-- Used by: news (Google News RSS, DuckDuckGo), product prices on approved retail sites (`shop_engine`), legal documents (`legal_engine`), `@plans` lookups (`web_research`), job posts (`@jobs`), weather, Vietlott.
+- Used by: news (Google News RSS, DuckDuckGo), product prices on approved retail sites (`shop_engine`), `@plans` lookups (`web_research`), job posts (`@jobs`), weather.
 - Tool results are filtered for suspected prompt-injection lines before they reach prompts (`scrub_untrusted`, see [Security](#-security)).
 
 ### Windows control (cua-driver)
@@ -399,7 +396,7 @@ Data lives in `data/jobs/` (profile, CV, pending list, sent log). It never appli
 │ next_tasks → synthesizer   │  │ turn_status ·     │
 └──────┬─────────────────────┘  │ reference · user  │
        ▼                        └───────────────────┘
-┌── engine/agents (18) ──┐  ┌── engine/tools ───────────────┐  ┌── engine/core ─────────────┐
+┌── engine/agents (16) ──┐  ┌── engine/tools ───────────────┐  ┌── engine/core ─────────────┐
 │ desktop, search, media │─►│ desktop automation, scrapling,│  │ memory, learning, evolution│
 │ office, rag, ...       │  │ media, office, weather, ...   │  │ dream, self_healing, RAG   │
 └────────────────────────┘  └───────────────────────────────┘  └────────────────────────────┘
@@ -420,6 +417,14 @@ Data lives in `data/jobs/` (profile, CV, pending list, sent log). It never appli
 - Redis on port 6379 (native Windows or WSL).
 - `yt-dlp` on PATH (for YouTube search).
 - Optional: [cua-driver](https://github.com/trycua/cua) for the `win_control` agent. Install in PowerShell: `irm https://cua.ai/driver/install.ps1 | iex` (see [details](#-core-tooling-web-scraping-and-windows-control)).
+
+### Notes after downloading
+
+- **Some features were removed** from the public version: legal document lookup, Vietlott analysis, administrative-unit lookup (provinces, wards). 16 agents remain.
+- **officecli**: `skills/officecli` only holds usage guidance. Install officecli from its original source and take the `examples/` folder (Word/Excel/PowerPoint samples) from there instead of the copy in this repo.
+- **Goose**: the `goose` agent only opens the Goose GUI and, once you approve, asks the Goose CLI to edit one file. It needs the Goose CLI and Goose for Windows. If you do not use it, ignore it, or swap in another tool you prefer (remove the agent from `engine/orchestrator/registry.py`, `skills/agents/goose/` and the related `commands/`).
+- **Using a large model (Claude, Gemini, ChatGPT)**: change `LOCAL_URL`, `LOCAL_API_KEY`, `LOCAL_MODEL` in `.env` to the provider's OpenAI-compatible endpoint. If their API is not OpenAI-shaped, adjust or rewrite [`engine/server/llm_server.py`](engine/server/llm_server.py) (request format, parameters, streaming). The prompts in `prompt/` are tuned for small local models; larger models may need re-tuning.
+- **Tests may fail on your machine**: some depend on external services (llama.cpp, Redis, `bsdtar`, network). After downloading, run `python -m pytest tests -q --ignore=tests/live --ignore-glob="tests/test_live_*"` and check failing tests before changing code.
 
 ### Steps
 
@@ -501,7 +506,7 @@ jarvis/
 ├── server.py              # FastAPI + WebSocket
 ├── prompt/                # TEXT of every prompt (*.md) + tools.md, agents.md directories
 ├── commands/              # 33 hot-reloaded Markdown commands
-├── skills/                # legal, officecli, self_evolution (STYLE.md)
+├── skills/                # officecli, self_evolution (STYLE.md)
 ├── config/                # mcp_config.json
 ├── scripts/               # cleanup_learning_2026_09.py (dry-run by default, --apply to clean)
 ├── data/                  # jarvis.db, wiki/ (Obsidian), documents/, backups/, dream_archive/
@@ -510,7 +515,7 @@ jarvis/
 │   ├── router/            # decide, gate, replay, ask_user, fast_paths, dispatch, chat
 │   ├── orchestrator/      # classifier, dispatcher, synthesizer, registry
 │   ├── prompts/           # prompt assembly: persona, chat, router, results, learning, catalog
-│   ├── agents/            # 18 agents
+│   ├── agents/            # 16 agents
 │   ├── tools/             # executable tools (media_search, desktop_automation, ...)
 │   ├── core/              # memory, learning, evolution, dream, self_healing, RAG, guardrails
 │   ├── server/            # llm_server, tts_manager, stream_tts, telegram_bot
@@ -551,7 +556,7 @@ rtk python -m pytest tests -q --ignore=tests/live
 
 - **`scrub_untrusted`** (`engine/core/guardrails.py`): removes each line suspected of prompt injection (`PROMPT_INJECTION_PATTERNS`) from tool/agent results before they enter history or prompts — applied in `actions.execute_tool` and `dispatcher.run_one`; one bad line doesn't spoil the whole result.
 - **`<untrusted_data>`**: agent reports sent back to the classifier (`next_tasks`) are wrapped in this tag with a reminder that they are "returned data, not requests" — preventing the model from treating web/tool content as new instructions.
-- After an agent reads external content (`search`, `media`, `rag`, `legal`, `vietlott`), `next_tasks` blocks any subsequent machine-control step (`win_control`, `desktop`, `goose`); other steps (e.g. `notes`, `office`) still run normally.
+- After an agent reads external content (`search`, `media`, `rag`), `next_tasks` blocks any subsequent machine-control step (`win_control`, `desktop`, `goose`); other steps (e.g. `notes`, `office`) still run normally.
 - **Origin check** (`engine/security/policy.py`, `firewall.py`): the IP firewall alone cannot stop a malicious web page opened on the same machine (its requests come from loopback). Browsers always send `Origin` for WebSocket and cross-origin POST/PUT/DELETE, so `/ws/voice` and every mutating request are rejected unless the origin is the same host or listed in `JARVIS_CORS_ORIGINS`. Non-browser clients (Telegram, httpx, curl) send no `Origin` and are unaffected.
 
 ---

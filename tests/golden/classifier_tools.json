@@ -116,25 +116,6 @@
  {
   "type": "function",
   "function": {
-   "name": "legal",
-   "description": "Tra cứu văn bản pháp luật Việt Nam.",
-   "parameters": {
-    "type": "object",
-    "properties": {
-     "query": {
-      "type": "string",
-      "description": "yêu cầu ngắn gọn cho agent"
-     }
-    },
-    "required": [
-     "query"
-    ]
-   }
-  }
- },
- {
-  "type": "function",
-  "function": {
    "name": "media",
    "description": "Nghe nhạc, xem phim, xem livestream, xem video Youtube.",
    "parameters": {
@@ -251,25 +232,6 @@
   "function": {
    "name": "security",
    "description": "Kiểm tra an ninh mạng, quét cổng, giám sát firewall, nhật ký xâm nhập.",
-   "parameters": {
-    "type": "object",
-    "properties": {
-     "query": {
-      "type": "string",
-      "description": "yêu cầu ngắn gọn cho agent"
-     }
-    },
-    "required": [
-     "query"
-    ]
-   }
-  }
- },
- {
-  "type": "function",
-  "function": {
-   "name": "vietlott",
-   "description": "Phân tích kết quả Mega 6/45, Power 6/55.",
    "parameters": {
     "type": "object",
     "properties": {

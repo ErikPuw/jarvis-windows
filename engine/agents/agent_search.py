@@ -3,7 +3,7 @@ from typing import Any
 
 log = logging.getLogger("jarvis.agent_search")
 
-_ALL_TOOLS = ["get_market_data", "search_products", "search_news", "weather_search", "map_route", "map_pois", "get_vannien_data","get_zodiac_data","get_cgv_movies","get_epic_free_games", "vietnam_data_lookup", "web_research"]
+_ALL_TOOLS = ["get_market_data", "search_products", "search_news", "weather_search", "map_route", "map_pois", "get_vannien_data","get_zodiac_data","get_cgv_movies","get_epic_free_games", "web_research"]
 
 _WEATHER_KW = ["thời tiết", "nhiệt độ", "dự báo", "độ ẩm", "mưa", "gió", "nóng", "lạnh"]
 _NEWS_KW = ["tin tức", "tin nóng", "tin mới", "bản tin", "thời sự", "sự kiện", "đọc báo", "báo chí", "news"]
@@ -14,8 +14,6 @@ _ZODIAC_KW = ["hoàng đạo", "bạch dương", "kim ngưu", "song tử","cự 
 _VANNIEN_KW = ["vạn niên", "lịch âm"]
 _CGV_KW = ["phim đang chiếu", "phim sắp chiếu", "cgv", "lịch phim", "lịch chiếu phim", "rạp phim", "rạp chiếu phim", "suất chiếu", "vé xem phim"]
 _EPIC_KW = ["game miễn phí", "trò chơi tuần epic"]
-_DATA_KW = ["hành chính", "tỉnh", "phường", "xã", "mã hành chính", "ranh giới"]
-
 def _select_tools(text: str, ws: Any = None) -> list[str]:
     tl = text.lower()
     selected = []
@@ -26,8 +24,6 @@ def _select_tools(text: str, ws: Any = None) -> list[str]:
     has_product = any(kw in tl for kw in _PRODUCT_KW)
     if has_product and not has_news:
         return ["search_products"]
-    if any(kw in tl for kw in _DATA_KW):
-        selected.append("vietnam_data_lookup")
     if any(kw in tl for kw in _WEATHER_KW):
         selected.append("weather_search")
     if has_news:
@@ -103,7 +99,6 @@ async def run_search_agent(
         "get_vannien_data": f"Thực thi: {user_text}",
         "get_zodiac_data": f"Thực thi: {user_text}",
         "get_cgv_movies": f"Thực thi: {user_text}",
-        "vietnam_data_lookup": f"Thực thi: {user_text}",
         "get_epic_free_games": f"Thực thi: {user_text}",
         "web_research": f"Thực thi: {user_text}",
     }
